@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import Config from 'react-native-config'
+import { Database } from '../types/database.types'
 
 const supabaseUrl = Config.SUPABASE_URL
 const supabaseKey = Config.SUPABASE_ANON_KEY
@@ -10,4 +11,4 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Faltan variables de entorno de Supabase')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey)
