@@ -1,32 +1,40 @@
+import { supabase } from "./supabaseClient";
 import { Excursion } from "../models/Excursion";
 
 class ExcursionService {
   async getAvailableExcursions(): Promise<Excursion[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: "1",
-            title: "Hayedo de Montejo - Otono",
-            difficulty: "Facil",
-            date: "2026-02-26",
-            time: "10:00",
-            meetingPoint: "Centro de Visitantes Montejo",
-            organizerName: "Isabel Fernandez",
-            availableSpots: 8,
-          },
-          {
-            id: "2",
-            title: "Ruta del Cares - Picos de Europa",
-            difficulty: "Medio",
-            date: "2026-02-28",
-            time: "08:00",
-            meetingPoint: "Aparcamiento Puente Poncebos",
-            organizerName: "Maria Gonzalez",
-            availableSpots: 7,
-          },
-        ]);
-      }, 300);
+    const { data, error } = await supabase.rpc("get_all_excursions");
+
+    if (error) {
+      console.error(error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    return data.map((row: any) => {
+
+      const date = new Date(row.fechaInicio);
+
+      return {
+        id: row.id.toString(),
+        title: row.titulo,
+        type: row.tipoExcursion,
+        difficulty: row.dificultad,
+        date: date.toISOString().split("T")[0],
+        time: date.toTimeString().slice(0,5),
+        meetingPoint: row.puntoEncuentro,
+        meetingLat: Number(row.meetingLat),
+        meetingLng: Number(row.meetingLng),
+        organizerId: row.creadoPor,
+        organizerName: row.creadoPor,
+        capacity: row.capacidad,
+        acceptedCount: 2,
+        status: row.status,
+        imageUrl: row.imagenURL,
+        gpxPath: row.GPXPath,
+      };
+
     });
   }
 }
