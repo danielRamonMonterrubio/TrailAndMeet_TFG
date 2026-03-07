@@ -3,9 +3,18 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import ExcursionListScreen from "../screens/ExcursionListScreen";
+import WelcomeScreen from "../screens/WelcomeScreen";
+import LoginScreen from "../screens/LoginScreen";
+import RegisterStep1Screen from "../screens/RegisterStep1Screen";
+import RegisterStep2Screen from "../screens/RegisterStep2Screen";
+
 import { View, Text } from "react-native";
 
 export type RootStackParamList = {
+  Welcome: undefined;
+  Login: undefined;
+  RegisterStep1: undefined;
+  RegisterStep2: undefined;
   ExcursionList: undefined;
   ExcursionDetail: { id: string };
 };
@@ -30,15 +39,32 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="ExcursionList"
+        initialRouteName="Welcome"
         screenOptions={{
           headerShown: false,
         }}
       >
         <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+        />
+
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+        />
+        <Stack.Screen 
+          name="RegisterStep1" 
+          component={RegisterStep1Screen} />
+        <Stack.Screen 
+          name="RegisterStep2" 
+          component={RegisterStep2Screen} />
+
+        <Stack.Screen
           name="ExcursionList"
           component={ExcursionListScreen}
         />
+
         <Stack.Screen
           name="ExcursionDetail"
           component={ExcursionDetailPlaceholder}
