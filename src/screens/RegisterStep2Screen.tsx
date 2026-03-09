@@ -12,17 +12,22 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
+import { RouteProp } from "@react-navigation/native";
+import { checkUsernameExists, completeRegistration } from "../services/authService";
+import { supabase } from "../services/supabaseClient";
 
 type Props = {
   navigation: NativeStackNavigationProp<
     RootStackParamList,
     "RegisterStep2"
   >;
+  route: RouteProp<RootStackParamList, "RegisterStep2">;
 };
 
-const RegisterStep2Screen: React.FC<Props> = ({ navigation }) => {
+const RegisterStep2Screen: React.FC<Props> = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
+  const { email, password } = route.params;
 
   const validate = () => {
     setError("");
@@ -40,14 +45,40 @@ const RegisterStep2Screen: React.FC<Props> = ({ navigation }) => {
     return true;
   };
 
-    const handleCreateAccount = () => {
-    if (!validate()) return;
+const handleCreateAccount = async () => {
+  if (!validate()) return;
+
+  try {
+
+    const exists = await checkUsernameExists(username);
+
+    if (exists) {
+      setError("Este nombre de usuario ya está en uso");
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+  await completeRegistration(username);
 
     navigation.reset({
-        index: 0,
-        routes: [{ name: "ExcursionList" }],
+      index: 0,
+      routes: [{ name: "ExcursionList" }],
     });
-    };
+
+  } catch (error) {
+    console.error(error);
+    setError("Error creando la cuenta");
+  }
+};
 
   return (
     <View style={styles.container}>

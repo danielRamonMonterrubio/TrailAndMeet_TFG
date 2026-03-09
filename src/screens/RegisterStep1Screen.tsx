@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
+import { checkEmailExists } from "../services/authService";
 
 type Props = {
   navigation: NativeStackNavigationProp<
@@ -68,14 +69,27 @@ const RegisterStep1Screen: React.FC<Props> = ({ navigation }) => {
     return valid;
   };
 
-  const handleContinue = () => {
-    if (!validate()) return;
+const handleContinue = async () => {
+  if (!validate()) return;
+
+  try {
+    const exists = await checkEmailExists(email);
+
+    if (exists) {
+      setEmailError("Este correo ya está registrado");
+      return;
+    }
 
     navigation.navigate("RegisterStep2", {
       email,
       password,
     });
-  };
+
+  } catch (error) {
+    console.error(error);
+    setEmailError("Error comprobando el correo");
+  }
+};
 
   return (
     <View style={styles.container}>

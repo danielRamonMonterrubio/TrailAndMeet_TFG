@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Config from 'react-native-config'
 import { Database } from '../types/database.types'
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const supabaseUrl = Config.SUPABASE_URL
 const supabaseKey = Config.SUPABASE_ANON_KEY
@@ -11,4 +12,15 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Faltan variables de entorno de Supabase')
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+export const supabase = createClient<Database>(
+  supabaseUrl,
+  supabaseKey,
+  {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);

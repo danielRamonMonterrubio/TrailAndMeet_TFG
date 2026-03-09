@@ -12,16 +12,47 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
+import { login } from "../services/authService";
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Login">;
 };
 
+
+
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = async () => {
+  setError("");
+
+  if (!email || !password) {
+    setError("Introduce correo y contraseña");
+    return;
+  }
+
+  try {
+    await login(email, password);
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "ExcursionList" }],
+    });
+
+  } catch (err: any) {
+    if (err.message.includes("Invalid login credentials")) {
+      setError("Correo o contraseña incorrectos");
+    } else {
+      setError("Error iniciando sesión");
+    }
+  }
+};
 
   return (
+    
     <View style={styles.container}>
       
       {/* HEADER */}
@@ -104,29 +135,29 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
           <View style={styles.passwordRow}>
             <TextInput
-              secureTextEntry
+              secureTextEntry={!showPassword}
               style={[styles.input, { flex: 1 }]}
               value={password}
               onChangeText={setPassword}
             />
 
-            <MaterialDesignIcons
-              name="eye-outline"
-              size={20}
-              color={colors.textMuted}
-            />
+            <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <MaterialDesignIcons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={colors.textMuted}
+              />
+            </Pressable>
           </View>
+          {error !== "" && (
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+          )}
         </View>
 
-        {/* FORGOT PASSWORD */}
-        <Pressable style={styles.forgot}>
-          <Text style={styles.forgotText}>
-            ¿Olvidaste tu contraseña?
-          </Text>
-        </Pressable>
-
         {/* LOGIN BUTTON */}
-        <Pressable style={styles.loginButton}>
+        <Pressable style={styles.loginButton} onPress={handleLogin}>
           <MaterialDesignIcons
             name="login"
             size={20}
@@ -174,6 +205,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+  },
+
+  errorText: {
+    color: "red",
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
   },
 
   headerTitle: {
