@@ -13,12 +13,9 @@ import { excursionService } from "../services/excursionService";
 import { Excursion } from "../models/Excursion";
 import ExcursionCard from "../components/ExcursionCard";
 import { colors } from "../theme/colors";
+import { RootStackParamList } from "../navigation/AppNavigation";
 
-type RootStackParamList = {
-  ExcursionList: undefined;
-  ExcursionDetail: { id: string };
-};
-
+import { logout } from "../services/authService";
 type Props = {
   navigation: NativeStackNavigationProp<
     RootStackParamList,
@@ -38,6 +35,20 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
     setExcursions(data);
   };
 
+    const handleLogout = async () => {
+    try {
+      await logout();
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Welcome" }],
+      });
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* HEADER */}
@@ -51,13 +62,25 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <MaterialDesignIcons name="image-filter-hdr" size={32} color={colors.white} />
-          <View>
+          <MaterialDesignIcons
+            name="image-filter-hdr"
+            size={32}
+            color={colors.white}
+          />
+
+          <View style={{ flex: 1 }}>
             <Text style={styles.appTitle}>TrailAndMeet</Text>
             <Text style={styles.subtitle}>
               Conecta con la naturaleza
             </Text>
           </View>
+
+          <MaterialDesignIcons
+            name="logout"
+            size={26}
+            color={colors.white}
+            onPress={handleLogout}
+          />
         </View>
       </LinearGradient>
 

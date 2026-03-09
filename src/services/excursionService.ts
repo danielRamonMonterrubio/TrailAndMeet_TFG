@@ -1,33 +1,19 @@
+import { supabase } from "./supabaseClient";
 import { Excursion } from "../models/Excursion";
+import { mapExcursion } from "./mappers/excursionMapper";
 
 class ExcursionService {
   async getAvailableExcursions(): Promise<Excursion[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          {
-            id: "1",
-            title: "Hayedo de Montejo - Otono",
-            difficulty: "Facil",
-            date: "2026-02-26",
-            time: "10:00",
-            meetingPoint: "Centro de Visitantes Montejo",
-            organizerName: "Isabel Fernandez",
-            availableSpots: 8,
-          },
-          {
-            id: "2",
-            title: "Ruta del Cares - Picos de Europa",
-            difficulty: "Medio",
-            date: "2026-02-28",
-            time: "08:00",
-            meetingPoint: "Aparcamiento Puente Poncebos",
-            organizerName: "Maria Gonzalez",
-            availableSpots: 7,
-          },
-        ]);
-      }, 300);
-    });
+    const { data, error } = await supabase.rpc("get_all_excursions");
+    console.log(data)
+    if (error) {
+      console.error(error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    return (data as any).map(mapExcursion)
   }
 }
 
