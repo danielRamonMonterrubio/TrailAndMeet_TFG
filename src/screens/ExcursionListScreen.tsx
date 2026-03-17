@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
@@ -120,6 +121,17 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
       </ScrollView>
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("CreateExcursion")}
+      >
+        <MaterialDesignIcons
+          name="plus"
+          size={28}
+          color={colors.white}
+        />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -180,5 +192,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     marginTop: 8,
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primaryGradientStart,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
   },
 });

@@ -7,6 +7,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterStep1Screen from "../screens/RegisterStep1Screen";
 import RegisterStep2Screen from "../screens/RegisterStep2Screen";
+import CreateExcursionScreen from "../screens/CreateExcursionScreen"; 
 
 import { AuthContext } from "../context/AuthContext.tsx";
 
@@ -21,6 +22,7 @@ export type RootStackParamList = {
     password: string;
   };
   ExcursionList: undefined;
+  CreateExcursion: undefined;
   ExcursionDetail: { id: string };
 };
 
@@ -81,6 +83,8 @@ const AppNavigator = () => {
           name="ExcursionList"
           component={ExcursionListScreen}
         />
+
+        <Stack.Screen name="CreateExcursion" component={CreateExcursionScreen} />
 
         <Stack.Screen
           name="ExcursionDetail"
