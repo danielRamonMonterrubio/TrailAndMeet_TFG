@@ -6,13 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
-import LinearGradient from "react-native-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { excursionService } from "../services/excursionService";
 import { Excursion } from "../models/Excursion";
-import ExcursionCard from "../components/ExcursionCard";
+import ExcursionCard from "../components/cards/ExcursionCard";
+import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
 
@@ -30,6 +31,13 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     loadExcursions();
   }, []);
+
+  // Recargar excursiones cuando la pantalla recibe el foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadExcursions();
+    }, [])
+  );
 
   const loadExcursions = async () => {
     const data = await excursionService.getAvailableExcursions();
@@ -52,38 +60,10 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
-      <LinearGradient
-        colors={[
-          colors.primaryGradientStart,
-          colors.primaryGradientEnd,
-        ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <MaterialDesignIcons
-            name="image-filter-hdr"
-            size={32}
-            color={colors.white}
-          />
-
-          <View style={{ flex: 1 }}>
-            <Text style={styles.appTitle}>TrailAndMeet</Text>
-            <Text style={styles.subtitle}>
-              Conecta con la naturaleza
-            </Text>
-          </View>
-
-          <MaterialDesignIcons
-            name="logout"
-            size={26}
-            color={colors.white}
-            onPress={handleLogout}
-          />
-        </View>
-      </LinearGradient>
+      <BrandHeader
+        rightIconName="logout"
+        onRightIconPress={handleLogout}
+      />
 
       {/* CONTENT */}
       <ScrollView contentContainerStyle={styles.content}>
@@ -142,25 +122,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSoft,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  appTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: colors.white,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: "#D1FAE5",
   },
   content: {
     paddingHorizontal: 16,

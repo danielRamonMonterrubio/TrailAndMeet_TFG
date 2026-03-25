@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
-import { colors } from "../theme/colors";
+import { colors } from "../../theme/colors";
 
 type Props = {
   label: string;

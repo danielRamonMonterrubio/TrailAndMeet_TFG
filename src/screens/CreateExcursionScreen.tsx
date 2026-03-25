@@ -7,24 +7,34 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/AppNavigation";
 
 import LinearGradient from "react-native-linear-gradient";
 import { colors } from "../theme/colors";
 import { Alert } from "react-native";
 
-import FormCard from "../components/FormCard";
-import FormInput from "../components/FormInput";
-import FormSelect from "../components/FormSelect";
-import FilePickerInput from "../components/FilePickerInput";
-import PrimaryButton from "../components/PrimaryButton";
+import FormCard from "../components/form/FormCard";
+import FormInput from "../components/form/FormInput";
+import FormSelect from "../components/form/FormSelect";
+import FilePickerInput from "../components/form/FilePickerInput";
+import DatePickerInput from "../components/form/DatePickerInput";
+import TimePickerInput from "../components/form/TimePickerInput";
+import SlotsInput from "../components/form/SlotsInput";
+import PrimaryButton from "../components/buttons/PrimaryButton";
 import { AppFile } from "../types/AppFile";
 
-import { ExcursionDifficulty } from "../models/Excursion";
+import { ExcursionDifficulty, ExcursionType, EXCURSION_DIFFICULTIES, EXCURSION_TYPES } from "../models/Excursion";
+import { supabase } from "../services/supabaseClient";
+import { excursionStorageService } from "../services/excursionStorageService";
 
 const CreateExcursionScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<AppFile | null>(null);
   const [difficulty, setDifficulty] = useState<ExcursionDifficulty | "">("");
+  const [excursionType, setExcursionType] = useState<ExcursionType | "">("Senderismo");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [place, setPlace] = useState("");
@@ -33,8 +43,29 @@ const CreateExcursionScreen = () => {
   const [slots, setSlots] = useState("");
   const [material, setMaterial] = useState("");
   const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const toIsoDateTime = (dateText: string, timeText: string) => {
+    const [day, month, year] = dateText.split("/").map((v) => Number(v));
+    const [hours, minutes] = timeText.split(":").map((v) => Number(v));
+
+    if (
+      !day ||
+      !month ||
+      !year ||
+      Number.isNaN(day) ||
+      Number.isNaN(month) ||
+      Number.isNaN(year) ||
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes)
+    ) {
+      return null;
+    }
+
+    return new Date(year, month - 1, day, hours, minutes).toISOString();
+  };
+
+  const handleSubmit = async () => {
     if (
       !title ||
       !file ||
@@ -51,7 +82,93 @@ const CreateExcursionScreen = () => {
       return;
     }
 
-    console.log("READY PARA BACKEND");
+    // Validar que sea .gpx
+    if (!excursionStorageService.validateGpxFile(file.name)) {
+      Alert.alert("Error", "El archivo debe tener extensión .gpx");
+      return;
+    }
+
+    const meetingLat = Number(lat);
+    const meetingLng = Number(lng);
+    const capacidad = Number(slots);
+    const fechaInicio = toIsoDateTime(date, time);
+
+    if (
+      Number.isNaN(meetingLat) ||
+      Number.isNaN(meetingLng) ||
+      Number.isNaN(capacidad)
+    ) {
+      Alert.alert("Error", "Latitud, longitud y plazas deben ser numéricos");
+      return;
+    }
+
+    if (!fechaInicio) {
+      Alert.alert("Error", "Fecha u hora inválidas. Usa formato dd/mm/aaaa y hh:mm");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Paso 1: Subir archivo a Storage
+    const gpxStoragePath = await excursionStorageService.uploadGpxFile(
+      file.base64,
+      file.name
+    );
+
+    if (!gpxStoragePath) {
+      setIsSubmitting(false);
+      Alert.alert("Error", "No se pudo subir el archivo GPX");
+      return;
+    }
+
+    // Paso 2: Llamar RPC con la ruta real
+    const rpcPayload = {
+      p_dificultad: difficulty,
+      p_fecha_inicio: fechaInicio,
+      p_capacidad: capacidad,
+      p_tipo_excursion: excursionType,
+      p_punto_encuentro: place,
+      p_titulo: title,
+      p_imagen_url: null,
+      p_gpx_path: gpxStoragePath,
+      p_meeting_lat: meetingLat,
+      p_meeting_lng: meetingLng,
+      p_status: "published",
+    };
+
+    const { error } = await (supabase as any).rpc(
+      "crear_excursion",
+      rpcPayload
+    );
+
+    setIsSubmitting(false);
+
+    if (error) {
+      console.error("Error create_excursion:", error);
+      // Rollback: borrar el archivo subido
+      await excursionStorageService.deleteGpxFile(gpxStoragePath);
+      Alert.alert("Error", "No se pudo crear la excursión. El archivo fue eliminado.");
+      return;
+    }
+
+    Alert.alert("Éxito", "Excursión creada correctamente");
+    setTitle("");
+    setFile(null);
+    setDifficulty("");
+    setExcursionType("Senderismo");
+    setDate("");
+    setTime("");
+    setPlace("");
+    setLat("");
+    setLng("");
+    setSlots("");
+    setMaterial("");
+    
+    // Volver a la pantalla anterior después de 1 segundo
+    setTimeout(() => {
+      navigation.goBack();
+    }, 1000);
+    setDescription("");
   };
 
   return (
@@ -96,24 +213,32 @@ const CreateExcursionScreen = () => {
             <FormSelect
               label="Nivel de dificultad *"
               value={difficulty}
-              options={["Facil", "Medio", "Dificil"]}
+              options={EXCURSION_DIFFICULTIES}
               onSelect={(v) => setDifficulty(v as ExcursionDifficulty)}
+            />
+          </FormCard>
+
+          {/* TIPO DE EXCURSION */}
+          <FormCard>
+            <FormSelect
+              label="Tipo de excursión *"
+              value={excursionType}
+              options={EXCURSION_TYPES}
+              onSelect={(v) => setExcursionType(v as ExcursionType)}
             />
           </FormCard>
 
           {/* FECHA */}
           <FormCard>
-            <FormInput
+            <DatePickerInput
               label="Fecha *"
               value={date}
-              onChangeText={setDate}
-              placeholder="dd/mm/aaaa"
+              onDateSelected={setDate}
             />
-            <FormInput
+            <TimePickerInput
               label="Hora *"
               value={time}
-              onChangeText={setTime}
-              placeholder="--:--"
+              onTimeSelected={setTime}
             />
           </FormCard>
 
@@ -139,8 +264,8 @@ const CreateExcursionScreen = () => {
 
           {/* PLAZAS */}
           <FormCard>
-            <FormInput
-              label="Número de plazas *"
+            <SlotsInput
+              label="Número de plazas"
               value={slots}
               onChangeText={setSlots}
             />
@@ -167,7 +292,7 @@ const CreateExcursionScreen = () => {
           </FormCard>
 
           <PrimaryButton
-            title="Crear Excursión"
+            title={isSubmitting ? "Creando..." : "Crear Excursión"}
             onPress={handleSubmit}
           />
         </View>

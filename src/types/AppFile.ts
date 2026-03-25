@@ -1,5 +1,5 @@
 export type AppFile = {
   name: string;
-  uri: string;
+  base64: string;
   type: string;
 };

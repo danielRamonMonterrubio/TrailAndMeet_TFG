@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, Text, StyleSheet } from "react-native";
-import { colors } from "../theme/colors";
+import { colors } from "../../theme/colors";
 
 export default function AuthButton({ title, variant, onPress }: any) {
   return (
