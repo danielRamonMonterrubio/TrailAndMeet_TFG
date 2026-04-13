@@ -72,6 +72,21 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Leer Google Maps API Key desde .env
+def googleMapsApiKey = ''
+def envFile = new File(rootProject.projectDir.parent, '.env')
+if (envFile.exists()) {
+    envFile.eachLine { line ->
+        if (line.startsWith('GOOGLE_MAPS_API_KEY=')) {
+            googleMapsApiKey = line.split('=')[1].trim()
+        }
+    }
+}
+// Fallback a variable de entorno si .env no existe o no tiene la clave
+if (!googleMapsApiKey) {
+    googleMapsApiKey = System.getenv('GOOGLE_MAPS_API_KEY') ?: ''
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -84,6 +99,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
     }
     signingConfigs {
         debug {

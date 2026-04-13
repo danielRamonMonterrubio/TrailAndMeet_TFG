@@ -28,6 +28,7 @@ import { AppFile } from "../types/AppFile";
 import { ExcursionDifficulty, ExcursionType, EXCURSION_DIFFICULTIES, EXCURSION_TYPES } from "../models/Excursion";
 import { supabase } from "../services/supabaseClient";
 import { excursionStorageService } from "../services/excursionStorageService";
+import excursionCreationService from "../services/excursionCreationService";
 
 const CreateExcursionScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -73,8 +74,6 @@ const CreateExcursionScreen = () => {
       !date ||
       !time ||
       !place ||
-      !lat ||
-      !lng ||
       !slots ||
       !material
     ) {
@@ -88,17 +87,11 @@ const CreateExcursionScreen = () => {
       return;
     }
 
-    const meetingLat = Number(lat);
-    const meetingLng = Number(lng);
     const capacidad = Number(slots);
     const fechaInicio = toIsoDateTime(date, time);
 
-    if (
-      Number.isNaN(meetingLat) ||
-      Number.isNaN(meetingLng) ||
-      Number.isNaN(capacidad)
-    ) {
-      Alert.alert("Error", "Latitud, longitud y plazas deben ser numéricos");
+    if (Number.isNaN(capacidad)) {
+      Alert.alert("Error", "Plazas debe ser numérico");
       return;
     }
 
@@ -109,66 +102,78 @@ const CreateExcursionScreen = () => {
 
     setIsSubmitting(true);
 
-    // Paso 1: Subir archivo a Storage
-    const gpxStoragePath = await excursionStorageService.uploadGpxFile(
-      file.base64,
-      file.name
-    );
+    try {
+      // Paso 1: Subir archivo a Storage
+      console.log('📤 Iniciando upload de GPX:', file.name);
+      const gpxStoragePath = await excursionStorageService.uploadGpxFile(
+        file.base64,
+        file.name
+      );
 
-    if (!gpxStoragePath) {
+      console.log('📤 Resultado upload:', gpxStoragePath);
+
+      if (!gpxStoragePath) {
+        Alert.alert("Error", "No se pudo subir el archivo GPX");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Paso 2: Llamar Edge Function que parsea GPX y crea la excursión
+      const response = await excursionCreationService.createExcursionWithGpx({
+        gpxBase64: file.base64,
+        p_titulo: title,
+        p_dificultad: difficulty,
+        p_fecha_inicio: fechaInicio,
+        p_capacidad: capacidad,
+        p_tipo_excursion: excursionType,
+        p_punto_encuentro: place,
+        p_imagen_url: null,
+        p_gpx_path: gpxStoragePath,
+        p_status: "published",
+      });
+
       setIsSubmitting(false);
-      Alert.alert("Error", "No se pudo subir el archivo GPX");
-      return;
+
+      if (response.success) {
+        const routeInfo = response.routeInfo;
+        
+        // Limpiar formulario
+        setTitle("");
+        setFile(null);
+        setDifficulty("");
+        setExcursionType("Senderismo");
+        setDate("");
+        setTime("");
+        setPlace("");
+        setLat("");
+        setLng("");
+        setSlots("");
+        setMaterial("");
+        setDescription("");
+
+        // Navegar y reemplazar la pantalla (sin poder volver atrás)
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'ExcursionList' }],
+        });
+
+        // Mostrar confirmación después
+        setTimeout(() => {
+          Alert.alert(
+            "¡Excursión creada!",
+            `Punto de encuentro detectado automáticamente:\nLat: ${routeInfo?.startPoint.lat.toFixed(
+              6
+            )}\nLon: ${routeInfo?.startPoint.lng.toFixed(6)}\n\nDistancia: ${
+              routeInfo?.totalDistance
+            }km\nElevación máxima: ${routeInfo?.maxElevation}m`
+          );
+        }, 300);
+      }
+    } catch (error) {
+      setIsSubmitting(false);
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      Alert.alert("Error", errorMessage);
     }
-
-    // Paso 2: Llamar RPC con la ruta real
-    const rpcPayload = {
-      p_dificultad: difficulty,
-      p_fecha_inicio: fechaInicio,
-      p_capacidad: capacidad,
-      p_tipo_excursion: excursionType,
-      p_punto_encuentro: place,
-      p_titulo: title,
-      p_imagen_url: null,
-      p_gpx_path: gpxStoragePath,
-      p_meeting_lat: meetingLat,
-      p_meeting_lng: meetingLng,
-      p_status: "published",
-    };
-
-    const { error } = await (supabase as any).rpc(
-      "crear_excursion",
-      rpcPayload
-    );
-
-    setIsSubmitting(false);
-
-    if (error) {
-      console.error("Error create_excursion:", error);
-      // Rollback: borrar el archivo subido
-      await excursionStorageService.deleteGpxFile(gpxStoragePath);
-      Alert.alert("Error", "No se pudo crear la excursión. El archivo fue eliminado.");
-      return;
-    }
-
-    Alert.alert("Éxito", "Excursión creada correctamente");
-    setTitle("");
-    setFile(null);
-    setDifficulty("");
-    setExcursionType("Senderismo");
-    setDate("");
-    setTime("");
-    setPlace("");
-    setLat("");
-    setLng("");
-    setSlots("");
-    setMaterial("");
-    
-    // Volver a la pantalla anterior después de 1 segundo
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1000);
-    setDescription("");
   };
 
   return (
@@ -206,6 +211,9 @@ const CreateExcursionScreen = () => {
                 fileName={file?.name || ""}
                 onFileSelected={(f) => setFile(f)}
                 />
+            <Text style={styles.helperText}>
+              Las coordenadas de inicio se extraerán automáticamente del archivo GPX
+            </Text>
           </FormCard>
 
           {/* DIFICULTAD */}
@@ -249,16 +257,6 @@ const CreateExcursionScreen = () => {
               value={place}
               onChangeText={setPlace}
               placeholder="Nombre del lugar"
-            />
-            <FormInput
-              label="Latitud *"
-              value={lat}
-              onChangeText={setLat}
-            />
-            <FormInput
-              label="Longitud *"
-              value={lng}
-              onChangeText={setLng}
             />
           </FormCard>
 
@@ -325,5 +323,11 @@ const styles = StyleSheet.create({
   label: {
     fontWeight: "600",
     marginBottom: 6,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    fontStyle: "italic",
   },
 });

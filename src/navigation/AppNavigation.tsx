@@ -7,11 +7,10 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterStep1Screen from "../screens/RegisterStep1Screen";
 import RegisterStep2Screen from "../screens/RegisterStep2Screen";
-import CreateExcursionScreen from "../screens/CreateExcursionScreen"; 
+import CreateExcursionScreen from "../screens/CreateExcursionScreen";
+import ExcursionDetailScreen from "../screens/ExcursionDetailScreen"; 
 
 import { AuthContext } from "../context/AuthContext.tsx";
-
-import { View, Text } from "react-native";
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -27,20 +26,6 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const ExcursionDetailPlaceholder = () => {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Detalle de excursión</Text>
-    </View>
-  );
-};
 
 const AppNavigator = () => {
 
@@ -86,10 +71,7 @@ const AppNavigator = () => {
 
         <Stack.Screen name="CreateExcursion" component={CreateExcursionScreen} />
 
-        <Stack.Screen
-          name="ExcursionDetail"
-          component={ExcursionDetailPlaceholder}
-        />
+        <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
 
       </Stack.Navigator>
     </NavigationContainer>

@@ -33,6 +33,13 @@ export const excursionStorageService = {
       const timestamp = Date.now();
       const storagePath = `${user.id}/${timestamp}_${fileName}`;
 
+      console.log('UPLOAD GPX:', {
+        userId: user.id,
+        fileName,
+        storagePath,
+        bucketName: BUCKET_NAME,
+      });
+
       // Convertir base64 a Uint8Array
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
@@ -40,18 +47,23 @@ export const excursionStorageService = {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
+      console.log('Bytes convertidos:', bytes.length);
+
       // Subir a Storage
-      const { error } = await supabase.storage
+      const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
         .upload(storagePath, bytes, {
           contentType: "application/gpx+xml",
         });
+
+      console.log('Upload response:', { data, error });
 
       if (error) {
         console.error("Error uploading GPX:", error);
         return null;
       }
 
+      console.log('✅ GPX subido exitosamente a:', storagePath);
       return storagePath;
     } catch (err) {
       console.error("Error in uploadGpxFile:", err);

@@ -21,7 +21,7 @@ DerivedData
 *.ipa
 *.xcuserstate
 **/.xcode.env.local
-
+memoria_prototipo.txt
 # Android/IntelliJ
 #
 build/
@@ -75,3 +75,4 @@ yarn-error.log
 !.yarn/versions
 
 .env
+.env.local
