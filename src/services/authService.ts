@@ -1,62 +1,121 @@
 import { supabase } from "./supabaseClient";
+import Config from 'react-native-config'
+
+const API_URL = Config.SUPABASE_URL
+const ANON_KEY = Config.SUPABASE_ANON_KEY
 
 export async function checkEmailExists(email: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc("check_email_exists", {
-    email_input: email,
-  });
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/auth-check-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ email }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📧 checkEmailExists response:', data);
+    return data.exists;
+  } catch (error) {
     console.error("Error comprobando email:", error);
     throw error;
   }
-
-  return data;
 }
 
 export async function checkUsernameExists(username: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc("check_username_exists", {
-    username_input: username,
-  });
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/auth-check-username`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ username }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.exists;
+  } catch (error) {
     console.error("Error comprobando username:", error);
     throw error;
   }
-
-  return data;
 }
 
+export async function completeRegistration(username: string, token: string) {
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/auth-complete-registration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ username }),
+    });
 
-export async function completeRegistration(username: string) {
-  const { error } = await supabase.rpc("complete_registration", {
-    username_input: username,
-  });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  if (error) {
+    const data = await response.json();
+    return data;
+  } catch (error) {
     console.error("Error completando registro:", error);
     throw error;
   }
 }
 
 export async function login(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/auth-login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-  if (error) {
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Login fallido');
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
     console.error("Error login:", error);
     throw error;
   }
-
-  return data;
 }
 
+export async function logout(token: string) {
+  try {
+    const response = await fetch(`${API_URL}/functions/v1/auth-logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ token }),
+    });
 
-export async function logout() {
-  const { error } = await supabase.auth.signOut();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  if (error) {
+    const data = await response.json();
+    return data;
+  } catch (error) {
     console.error("Error cerrando sesión:", error);
     throw error;
   }

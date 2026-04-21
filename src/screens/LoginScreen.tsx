@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
@@ -9,47 +9,54 @@ import {
 import LinearGradient from "react-native-linear-gradient";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
 import { login } from "../services/authService";
+import { AuthContext } from "../context/AuthContext";
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Login">;
 };
-
-
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const { setSession } = useContext(AuthContext);
 
   const handleLogin = async () => {
-  setError("");
+    setError("");
 
-  if (!email || !password) {
-    setError("Introduce correo y contraseña");
-    return;
-  }
-
-  try {
-    await login(email, password);
-
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "ExcursionList" }],
-    });
-
-  } catch (err: any) {
-    if (err.message.includes("Invalid login credentials")) {
-      setError("Correo o contraseña incorrectos");
-    } else {
-      setError("Error iniciando sesión");
+    if (!email || !password) {
+      setError("Introduce correo y contraseña");
+      return;
     }
-  }
-};
+
+    try {
+      const data = await login(email, password);
+      
+      // Guardar sesión en AsyncStorage y contexto
+      if (data.session) {
+        await AsyncStorage.setItem('auth_session', JSON.stringify(data.session));
+        setSession(data.session);
+      }
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "ExcursionList" }],
+      });
+
+    } catch (err: any) {
+      if (err.message.includes("Invalid login credentials")) {
+        setError("Correo o contraseña incorrectos");
+      } else {
+        setError("Error iniciando sesión");
+      }
+    }
+  };
 
   return (
     

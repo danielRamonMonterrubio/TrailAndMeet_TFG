@@ -49,7 +49,6 @@ const handleCreateAccount = async () => {
   if (!validate()) return;
 
   try {
-
     const exists = await checkUsernameExists(username);
 
     if (exists) {
@@ -57,17 +56,26 @@ const handleCreateAccount = async () => {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
+    // Crear usuario en Supabase
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (signUpError) {
+      setError(signUpError.message);
       return;
     }
 
-  await completeRegistration(username);
+    // Obtener el token de la sesión
+    const token = data?.session?.access_token;
+    if (!token) {
+      setError("Error obteniendo token de sesión");
+      return;
+    }
+
+    // Completar registro con el username
+    await completeRegistration(username, token);
 
     navigation.reset({
       index: 0,

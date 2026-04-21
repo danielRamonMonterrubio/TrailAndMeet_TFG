@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { excursionService } from "../services/excursionService";
 import { Excursion } from "../models/Excursion";
@@ -16,6 +17,7 @@ import ExcursionCard from "../components/cards/ExcursionCard";
 import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
+import { AuthContext } from "../context/AuthContext";
 
 import { logout } from "../services/authService";
 type Props = {
@@ -27,6 +29,7 @@ type Props = {
 
 const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
   const [excursions, setExcursions] = useState<Excursion[]>([]);
+  const { session, setSession } = useContext(AuthContext);
 
   useEffect(() => {
     loadExcursions();
@@ -44,9 +47,23 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
     setExcursions(data);
   };
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
-      await logout();
+      const token = session?.access_token;
+      
+      // Solo llamar logout al backend si hay token válido
+      if (token) {
+        try {
+          await logout(token);
+        } catch (error) {
+          // Si falla el logout en backend, igual limpiar localmente
+          console.error("Logout remoto falló:", error);
+        }
+      }
+
+      // Limpiar sesión del contexto y AsyncStorage siempre
+      setSession(null);
+      await AsyncStorage.removeItem('auth_session');
 
       navigation.reset({
         index: 0,
