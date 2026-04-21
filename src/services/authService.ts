@@ -20,7 +20,6 @@ export async function checkEmailExists(email: string): Promise<boolean> {
     }
 
     const data = await response.json();
-    console.log('📧 checkEmailExists response:', data);
     return data.exists;
   } catch (error) {
     console.error("Error comprobando email:", error);

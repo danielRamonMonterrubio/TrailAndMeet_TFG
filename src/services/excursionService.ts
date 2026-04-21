@@ -5,7 +5,7 @@ import { mapExcursion } from "./mappers/excursionMapper";
 class ExcursionService {
   async getAvailableExcursions(): Promise<Excursion[]> {
     const { data, error } = await supabase.rpc("get_all_excursions");
-    console.log(data)
+    console.log("Raw data from RPC:", JSON.stringify(data, null, 2));
     if (error) {
       console.error(error);
       return [];
@@ -13,7 +13,9 @@ class ExcursionService {
 
     if (!data) return [];
 
-    return (data as any).map(mapExcursion)
+    const mapped = (data as any).map(mapExcursion);
+    console.log("Mapped excursions:", JSON.stringify(mapped, null, 2));
+    return mapped;
   }
 }
 

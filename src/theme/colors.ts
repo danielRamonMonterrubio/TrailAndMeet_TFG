@@ -1,6 +1,7 @@
 export const colors = {
   primaryGradientStart: "#059669",
   primaryGradientEnd: "#0D9488",
+  primary: "#059669",
 
   textPrimary: "#1F2937",
   textSecondary: "#4B5563",
@@ -8,6 +9,7 @@ export const colors = {
 
   white: "#FFFFFF",
   grayLight: "#E5E7EB",
+  borderColor: "#D1D5DB",
 
   backgroundSoft: "#EAF6F4",
 
