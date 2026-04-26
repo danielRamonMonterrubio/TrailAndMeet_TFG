@@ -9,7 +9,6 @@ import {
 import LinearGradient from "react-native-linear-gradient";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { colors } from "../theme/colors";
 import { RootStackParamList } from "../navigation/AppNavigation";
@@ -38,9 +37,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const data = await login(email, password);
       
-      // Guardar sesión en AsyncStorage y contexto
+      // Guardar sesión en contexto (que a su vez la guarda en AsyncStorage y Supabase)
       if (data.session) {
-        await AsyncStorage.setItem('auth_session', JSON.stringify(data.session));
         setSession(data.session);
       }
 

@@ -67,17 +67,38 @@ const ExcursionDetailScreen = () => {
         console.log('🔍 Parseando XML...');
         const gpxData = parser.parse(gpxText);
         console.log('✅ XML parseado');
+        console.log('📊 GPX Data structure:', JSON.stringify(gpxData, null, 2).substring(0, 500));
         
         const trackpoints = extractAllTrackpoints(gpxData);
         console.log('✅ Trackpoints extraídos:', trackpoints.length);
+        if (trackpoints.length > 0) {
+          console.log('🔎 Primer trackpoint:', JSON.stringify(trackpoints[0]));
+        }
         
-        const coordinates = trackpoints.map((point: any) => ({
-          latitude: parseFloat(point['@_lat']),
-          longitude: parseFloat(point['@_lon']),
-        }));
+        const coordinates = trackpoints.map((point: any) => {
+          const lat = parseFloat(point['@_lat']);
+          const lon = parseFloat(point['@_lon']);
+          console.log(`📍 Punto - lat: ${point['@_lat']} (${lat}), lon: ${point['@_lon']} (${lon})`);
+          return {
+            latitude: lat,
+            longitude: lon,
+          };
+        });
+        
+        // Filtrar coordenadas válidas (no NaN)
+        const validCoordinates = coordinates.filter(coord => 
+          !isNaN(coord.latitude) && !isNaN(coord.longitude) && 
+          coord.latitude >= -90 && coord.latitude <= 90 &&
+          coord.longitude >= -180 && coord.longitude <= 180
+        );
         
         console.log('✅ Coordinates mapeadas:', coordinates.length);
-        setRouteCoordinates(coordinates);
+        console.log('✅ Coordinates válidas:', validCoordinates.length);
+        console.log('📍 First coordinate:', coordinates[0]);
+        console.log('📍 Last coordinate:', coordinates[coordinates.length - 1]);
+        console.log('❌ Coordenadas inválidas:', coordinates.length - validCoordinates.length);
+        
+        setRouteCoordinates(validCoordinates);
       }
 
       console.log('✅ loadExcursionDetails COMPLETE');
@@ -135,20 +156,29 @@ const ExcursionDetailScreen = () => {
     );
   }
 
-  // Calcular bounds del mapa
-  const mapInitialRegion = routeCoordinates.length > 0
-    ? {
-        latitude: excursion.meetingLat,
-        longitude: excursion.meetingLng,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      }
-    : {
-        latitude: excursion.meetingLat,
-        longitude: excursion.meetingLng,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+  // Centrar el mapa en la ruta GPX; si no hay ruta, usar el punto de encuentro
+  const mapInitialRegion = (() => {
+    if (routeCoordinates.length > 0) {
+      const lats = routeCoordinates.map(c => c.latitude);
+      const lons = routeCoordinates.map(c => c.longitude);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLon = Math.min(...lons);
+      const maxLon = Math.max(...lons);
+      return {
+        latitude: (minLat + maxLat) / 2,
+        longitude: (minLon + maxLon) / 2,
+        latitudeDelta: (maxLat - minLat) * 1.4 || 0.05,
+        longitudeDelta: (maxLon - minLon) * 1.4 || 0.05,
       };
+    }
+    return {
+      latitude: excursion.meetingLat,
+      longitude: excursion.meetingLng,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    };
+  })();
 
   return (
     <ScrollView style={styles.container}>
@@ -407,6 +437,5 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 400,
     borderRadius: 12,
-    overflow: 'hidden',
   },
 });

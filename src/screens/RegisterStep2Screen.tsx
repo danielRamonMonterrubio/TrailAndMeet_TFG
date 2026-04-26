@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { RootStackParamList } from "../navigation/AppNavigation";
 import { RouteProp } from "@react-navigation/native";
 import { checkUsernameExists, completeRegistration } from "../services/authService";
 import { supabase } from "../services/supabaseClient";
+import { AuthContext } from "../context/AuthContext";
 
 type Props = {
   navigation: NativeStackNavigationProp<
@@ -28,6 +29,7 @@ const RegisterStep2Screen: React.FC<Props> = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const { email, password } = route.params;
+  const { setSession } = useContext(AuthContext);
 
   const validate = () => {
     setError("");
@@ -76,6 +78,11 @@ const handleCreateAccount = async () => {
 
     // Completar registro con el username
     await completeRegistration(username, token);
+
+    // Guardar sesión en contexto (que a su vez la guarda en AsyncStorage y Supabase)
+    if (data.session) {
+      setSession(data.session);
+    }
 
     navigation.reset({
       index: 0,

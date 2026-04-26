@@ -11,7 +11,6 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { excursionService } from "../services/excursionService";
 import { Excursion, EXCURSION_DIFFICULTIES, EXCURSION_TYPES, ExcursionDifficulty, ExcursionType } from "../models/Excursion";
@@ -100,9 +99,8 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
         }
       }
 
-      // Limpiar sesión del contexto y AsyncStorage siempre
+      // Limpiar sesión del contexto (que también limpia AsyncStorage y Supabase)
       setSession(null);
-      await AsyncStorage.removeItem('auth_session');
 
       navigation.reset({
         index: 0,

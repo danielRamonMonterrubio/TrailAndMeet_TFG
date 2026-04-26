@@ -1,6 +1,7 @@
 import React, { createContext, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "../services/supabaseClient";
 
 type AuthContextType = {
   session: Session | null;
@@ -25,7 +26,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const savedSession = await AsyncStorage.getItem('auth_session');
         if (savedSession) {
-          setSessionState(JSON.parse(savedSession));
+          const parsedSession = JSON.parse(savedSession) as Session;
+          setSessionState(parsedSession);
+          
+          // Restaurar sesión en Supabase también
+          await supabase.auth.setSession(parsedSession);
+          console.log('✅ Sesión restaurada desde AsyncStorage y sincronizada con Supabase');
         }
       } catch (error) {
         console.error('Error restaurando sesión:', error);
@@ -41,8 +47,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessionState(newSession);
     if (newSession) {
       AsyncStorage.setItem('auth_session', JSON.stringify(newSession));
+      // Sincronizar sesión con Supabase
+      supabase.auth.setSession(newSession);
+      console.log('✅ Sesión guardada en AsyncStorage y sincronizada con Supabase');
     } else {
       AsyncStorage.removeItem('auth_session');
+      // Limpiar sesión en Supabase
+      supabase.auth.signOut();
+      console.log('✅ Sesión eliminada de AsyncStorage y Supabase');
     }
   };
 
