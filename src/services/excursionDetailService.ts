@@ -1,6 +1,9 @@
 import { supabase } from './supabaseClient';
 import Config from 'react-native-config';
 
+const API_URL = Config.SUPABASE_URL;
+const ANON_KEY = Config.SUPABASE_ANON_KEY;
+
 export interface ExcursionDetail {
   id: string;
   title: string;
@@ -12,7 +15,10 @@ export interface ExcursionDetail {
   meetingLat: number;
   meetingLng: number;
   organizerName: string;
+  capacity: number;
   availableSpots: number;
+  isOrganizer: boolean;
+  isJoined: boolean;
   imageUrl?: string;
   gpxPath: string;
   distanciaTotal: number;
@@ -28,29 +34,28 @@ export const excursionDetailService = {
       console.log('📖 getExcursionDetail START:', excursionId);
       const numericId = parseInt(excursionId, 10);
 
-      console.log('🔄 Llamando RPC obtener_detalle_excursion...');
-      const { data, error } = await supabase.rpc('obtener_detalle_excursion', {
-        p_excursion_id: numericId,
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? ANON_KEY;
+
+      const response = await fetch(`${API_URL}/functions/v1/get-excursion-detail`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ excursionId: numericId }),
       });
 
-      console.log('📨 RPC response:', { hasData: !!data, hasError: !!error });
-
-      if (error) {
-        console.error('❌ Error RPC:', error);
-        throw new Error(`Error RPC: ${error.message}`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${response.status}`);
       }
 
-      if (!data || data.length === 0) {
-        console.log('❌ No data found');
-        throw new Error('No se encontró la excursión');
-      }
+      const excursionData = await response.json();
 
-      const excursionData = data[0];
       const fecha = new Date(excursionData.fechaInicio);
       const dateStr = fecha.toISOString().split('T')[0];
       const timeStr = fecha.toTimeString().split(' ')[0].substring(0, 5);
-
-      console.log('✅ RPC data parsed:', { id: excursionData.id, GPXPath: excursionData.GPXPath });
 
       const result: ExcursionDetail = {
         id: String(excursionData.id),
@@ -63,7 +68,10 @@ export const excursionDetailService = {
         meetingLat: excursionData.meetingLat,
         meetingLng: excursionData.meetingLng,
         organizerName: excursionData.organizador_nombre || 'Desconocido',
-        availableSpots: excursionData.capacidad,
+        capacity: excursionData.capacidad,
+        availableSpots: excursionData.availableSpots,
+        isOrganizer: !!excursionData.isOrganizer,
+        isJoined: !!excursionData.isJoined,
         imageUrl: excursionData.imagenURL,
         gpxPath: excursionData.GPXPath,
         distanciaTotal: excursionData.distancia_total || 0,

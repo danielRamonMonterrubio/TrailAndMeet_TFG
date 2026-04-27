@@ -6,7 +6,6 @@ const corsHeaders = {
 }
 
 export async function handler(req: Request): Promise<Response> {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -18,16 +17,14 @@ export async function handler(req: Request): Promise<Response> {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     // Llamar RPC con filtros
-    const { data, error } = await supabase.rpc('get_filtered_excursions', {
+    const { data: excursions, error } = await supabase.rpc('get_filtered_excursions', {
       p_difficulty: difficulty || null,
       p_type: type || null,
     })
-
-    console.log('RPC get_filtered_excursions respondió. Error:', error, 'Data count:', data?.length)
 
     if (error) {
       console.error('Error en RPC:', error)
@@ -37,8 +34,56 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
+    const list = (excursions ?? []) as any[]
+
+    if (list.length === 0) {
+      return new Response(
+        JSON.stringify([]),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Resolver usuario actual (opcional)
+    let userId: string | null = null
+    const authHeader = req.headers.get('Authorization')
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user } } = await supabase.auth.getUser(token)
+      if (user) userId = user.id
+    }
+
+    // Cargar participaciones de las excursiones devueltas
+    const ids = list.map(e => e.id)
+    const { data: participaciones, error: partError } = await supabase
+      .from('participacion')
+      .select('excursionId, usuarioId')
+      .in('excursionId', ids)
+
+    if (partError) {
+      console.error('Error cargando participaciones:', partError)
+      return new Response(
+        JSON.stringify({ error: partError.message }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
+
+    const countByExcursion = new Map<number, number>()
+    const joinedByCurrentUser = new Set<number>()
+
+    for (const p of participaciones ?? []) {
+      countByExcursion.set(p.excursionId, (countByExcursion.get(p.excursionId) ?? 0) + 1)
+      if (userId && p.usuarioId === userId) joinedByCurrentUser.add(p.excursionId)
+    }
+
+    const enriched = list.map(e => ({
+      ...e,
+      availableSpots: Math.max(0, (e.capacidad ?? 0) - (countByExcursion.get(e.id) ?? 0)),
+      isOrganizer: userId ? e.creadoPor === userId : false,
+      isJoined: userId ? joinedByCurrentUser.has(e.id) : false,
+    }))
+
     return new Response(
-      JSON.stringify(data || []),
+      JSON.stringify(enriched),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
