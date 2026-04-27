@@ -21,4 +21,9 @@ export const colors = {
 
   hardBg: "#FEE2E2",
   hardText: "#991B1B",
+
+  headerSubtitle: "#D1FAE5",
+  errorRed: "#EF4444",
+  successGreen: "#10B981",
+  infoBg: "#E6F4EF",
 };

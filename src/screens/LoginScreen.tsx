@@ -5,12 +5,16 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { colors } from "../theme/colors";
+import { shared } from "../theme/styles";
 import { RootStackParamList } from "../navigation/AppNavigation";
 import { login } from "../services/authService";
 import { AuthContext } from "../context/AuthContext";
@@ -36,8 +40,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     try {
       const data = await login(email, password);
-      
-      // Guardar sesión en contexto (que a su vez la guarda en AsyncStorage y Supabase)
+
       if (data.session) {
         setSession(data.session);
       }
@@ -46,7 +49,6 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         index: 0,
         routes: [{ name: "ExcursionList" }],
       });
-
     } catch (err: any) {
       if (err.message.includes("Invalid login credentials")) {
         setError("Correo o contraseña incorrectos");
@@ -57,140 +59,93 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    
-    <View style={styles.container}>
-      
+    <View style={shared.container}>
+
       {/* HEADER */}
       <LinearGradient
-        colors={[
-          colors.primaryGradientStart,
-          colors.primaryGradientEnd,
-        ]}
-        style={styles.header}
+        colors={[colors.primaryGradientStart, colors.primaryGradientEnd]}
+        style={shared.header}
       >
-        <Pressable
-          onPress={() => navigation.navigate("Welcome")}
-        >
-          <MaterialDesignIcons
-            name="arrow-left"
-            size={24}
-            color={colors.white}
-          />
+        <Pressable onPress={() => navigation.navigate("Welcome")}>
+          <MaterialDesignIcons name="arrow-left" size={24} color={colors.white} />
         </Pressable>
 
         <View>
-          <Text style={styles.headerTitle}>Iniciar Sesión</Text>
-          <Text style={styles.headerSubtitle}>
-            Accede a tu cuenta
-          </Text>
+          <Text style={shared.headerTitle}>Iniciar Sesión</Text>
+          <Text style={shared.headerSubtitle}>Accede a tu cuenta</Text>
         </View>
       </LinearGradient>
 
       {/* CONTENT */}
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={shared.content}>
 
-        {/* ICON */}
-        <View style={styles.iconCircle}>
-          <MaterialDesignIcons
-            name="login"
-            size={32}
-            color={colors.white}
-          />
-        </View>
+            {/* ICON */}
+            <View style={shared.iconCircle}>
+              <MaterialDesignIcons name="login" size={32} color={colors.white} />
+            </View>
 
-        <Text style={styles.title}>¡Hola de nuevo!</Text>
-        <Text style={styles.subtitle}>
-          Inicia sesión para continuar
-        </Text>
+            <Text style={[shared.screenTitle, { textAlign: "center" }]}>¡Hola de nuevo!</Text>
+            <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
-        {/* USER INPUT */}
-        <View style={styles.inputCard}>
-          <View style={styles.inputHeader}>
-            <MaterialDesignIcons
-              name="account-outline"
-              size={18}
-              color={colors.primaryGradientStart}
-            />
-            <Text style={styles.inputLabel}>
-              Correo electrónico
-            </Text>
-          </View>
-
-          <TextInput
-            placeholder="correo@example.com"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-          />
-        </View>
-
-        {/* PASSWORD INPUT */}
-        <View style={styles.inputCard}>
-          <View style={styles.inputHeader}>
-            <MaterialDesignIcons
-              name="lock-outline"
-              size={18}
-              color={colors.primaryGradientStart}
-            />
-            <Text style={styles.inputLabel}>
-              Contraseña
-            </Text>
-          </View>
-
-          <View style={styles.passwordRow}>
-            <TextInput
-              secureTextEntry={!showPassword}
-              style={[styles.input, { flex: 1 }]}
-              value={password}
-              onChangeText={setPassword}
-            />
-
-            <Pressable onPress={() => setShowPassword(!showPassword)}>
-              <MaterialDesignIcons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={colors.textMuted}
+            {/* EMAIL */}
+            <View style={shared.card}>
+              <Text style={shared.label}>Correo electrónico</Text>
+              <TextInput
+                placeholder="correo@example.com"
+                placeholderTextColor={colors.textMuted}
+                style={shared.input}
+                value={email}
+                onChangeText={setEmail}
               />
+            </View>
+
+            {/* CONTRASEÑA */}
+            <View style={shared.card}>
+              <Text style={shared.label}>Contraseña</Text>
+              <View style={shared.passwordRow}>
+                <TextInput
+                  secureTextEntry={!showPassword}
+                  style={[shared.input, { flex: 1 }]}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)}>
+                  <MaterialDesignIcons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+              </View>
+
+              {error !== "" && <Text style={shared.errorText}>{error}</Text>}
+            </View>
+
+            {/* BOTÓN */}
+            <Pressable style={styles.loginButton} onPress={handleLogin}>
+              <MaterialDesignIcons name="login" size={20} color={colors.white} />
+              <Text style={shared.primaryButtonText}>Iniciar Sesión</Text>
             </Pressable>
+
+            {/* REGISTRO */}
+            <View style={styles.registerRow}>
+              <Text style={styles.registerText}>¿No tienes cuenta?</Text>
+              <Pressable onPress={() => navigation.navigate("RegisterStep1")}>
+                <Text style={styles.registerLink}>Regístrate aquí</Text>
+              </Pressable>
+            </View>
+
           </View>
-          {error !== "" && (
-            <Text style={styles.errorText}>
-              {error}
-            </Text>
-          )}
-        </View>
-
-        {/* LOGIN BUTTON */}
-        <Pressable style={styles.loginButton} onPress={handleLogin}>
-          <MaterialDesignIcons
-            name="login"
-            size={20}
-            color={colors.white}
-          />
-          <Text style={styles.loginText}>
-            Iniciar Sesión
-          </Text>
-        </Pressable>
-
-        {/* REGISTER */}
-        <View style={styles.registerRow}>
-          <Text style={styles.registerText}>
-            ¿No tienes cuenta?
-          </Text>
-
-          <Pressable
-            onPress={() =>
-              navigation.navigate("RegisterStep1")
-            }
-          >
-            <Text style={styles.registerLink}>
-              Regístrate aquí
-            </Text>
-          </Pressable>
-        </View>
-
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -198,108 +153,12 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 export default LoginScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSoft,
-  },
-
-  header: {
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-
-  errorText: {
-    color: "red",
-    fontSize: 12,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-
-  headerTitle: {
-    color: colors.white,
-    fontSize: 20,
-    fontWeight: "600",
-  },
-
-  headerSubtitle: {
-    color: "#D1FAE5",
-    fontSize: 12,
-  },
-
-  content: {
-    padding: 24,
-    alignItems: "center",
-  },
-
-  iconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: colors.primaryGradientStart,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-
   subtitle: {
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 30,
+    textAlign: "center",
   },
-
-  inputCard: {
-    width: "100%",
-    backgroundColor: colors.white,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-
-  inputHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-
-  inputLabel: {
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-
-  input: {
-    backgroundColor: colors.grayLight,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-
-  passwordRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  forgot: {
-    alignSelf: "flex-end",
-    marginBottom: 20,
-  },
-
-  forgotText: {
-    color: colors.primaryGradientStart,
-    fontSize: 13,
-  },
-
   loginButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -311,22 +170,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 30,
   },
-
-  loginText: {
-    color: colors.white,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-
   registerRow: {
     flexDirection: "row",
     gap: 6,
   },
-
   registerText: {
     color: colors.textSecondary,
   },
-
   registerLink: {
     color: colors.primaryGradientStart,
     fontWeight: "600",

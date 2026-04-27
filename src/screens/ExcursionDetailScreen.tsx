@@ -8,12 +8,12 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { colors } from '../theme/colors';
+import { shared } from '../theme/styles';
 import excursionDetailService, { ExcursionDetail } from '../services/excursionDetailService';
-import gpxParserService from '../services/gpxParserService';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 
 interface RouteParams {
@@ -27,13 +27,14 @@ interface GpxCoordinate {
 
 const ExcursionDetailScreen = () => {
   const route = useRoute();
-  const navigation = useNavigation();
   const { id } = route.params as RouteParams;
 
   const [excursion, setExcursion] = useState<ExcursionDetail | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<GpxCoordinate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [gpxStatus, setGpxStatus] = useState<string>('pendiente');
 
   useEffect(() => {
     loadExcursionDetails();
@@ -54,51 +55,52 @@ const ExcursionDetailScreen = () => {
 
       // Descargar y parsear GPX
       if (detail.gpxPath) {
-        console.log('📥 Descargando GPX...');
-        const gpxText = await excursionDetailService.downloadGpxFile(detail.gpxPath);
-        console.log('✅ GPX descargado, longitud:', gpxText.length);
-        
-        // Parsear directamente (es XML text, no base64)
+        setGpxStatus('descargando');
+        console.log('📥 [GPX] Descargando archivo desde:', detail.gpxPath);
+        let gpxText: string;
+        try {
+          gpxText = await excursionDetailService.downloadGpxFile(detail.gpxPath);
+          console.log('✅ [GPX] Descargado OK, longitud:', gpxText.length, 'chars');
+        } catch (downloadErr) {
+          console.error('❌ [GPX] Error en descarga:', downloadErr);
+          setGpxStatus('error-descarga');
+          throw downloadErr;
+        }
+
+        setGpxStatus('parseando');
         const parser = new (require('fast-xml-parser')).XMLParser({
           ignoreAttributes: false,
           attributeNamePrefix: '@_',
         });
-        
-        console.log('🔍 Parseando XML...');
         const gpxData = parser.parse(gpxText);
-        console.log('✅ XML parseado');
-        console.log('📊 GPX Data structure:', JSON.stringify(gpxData, null, 2).substring(0, 500));
-        
         const trackpoints = extractAllTrackpoints(gpxData);
-        console.log('✅ Trackpoints extraídos:', trackpoints.length);
+        console.log('✅ [GPX] Trackpoints encontrados:', trackpoints.length);
         if (trackpoints.length > 0) {
-          console.log('🔎 Primer trackpoint:', JSON.stringify(trackpoints[0]));
+          console.log('🔎 [GPX] Primer punto raw:', JSON.stringify(trackpoints[0]));
         }
-        
-        const coordinates = trackpoints.map((point: any) => {
-          const lat = parseFloat(point['@_lat']);
-          const lon = parseFloat(point['@_lon']);
-          console.log(`📍 Punto - lat: ${point['@_lat']} (${lat}), lon: ${point['@_lon']} (${lon})`);
-          return {
-            latitude: lat,
-            longitude: lon,
-          };
-        });
-        
-        // Filtrar coordenadas válidas (no NaN)
-        const validCoordinates = coordinates.filter(coord => 
-          !isNaN(coord.latitude) && !isNaN(coord.longitude) && 
+
+        const coordinates = trackpoints.map((point: any) => ({
+          latitude: parseFloat(point['@_lat']),
+          longitude: parseFloat(point['@_lon']),
+        }));
+
+        const validCoordinates = coordinates.filter(coord =>
+          !isNaN(coord.latitude) && !isNaN(coord.longitude) &&
           coord.latitude >= -90 && coord.latitude <= 90 &&
           coord.longitude >= -180 && coord.longitude <= 180
         );
-        
-        console.log('✅ Coordinates mapeadas:', coordinates.length);
-        console.log('✅ Coordinates válidas:', validCoordinates.length);
-        console.log('📍 First coordinate:', coordinates[0]);
-        console.log('📍 Last coordinate:', coordinates[coordinates.length - 1]);
-        console.log('❌ Coordenadas inválidas:', coordinates.length - validCoordinates.length);
-        
+
+        console.log('✅ [GPX] Coords totales:', coordinates.length, '| válidas:', validCoordinates.length, '| inválidas:', coordinates.length - validCoordinates.length);
+        if (validCoordinates.length > 0) {
+          console.log('📍 [GPX] Primera coord válida:', validCoordinates[0]);
+          console.log('📍 [GPX] Última coord válida:', validCoordinates[validCoordinates.length - 1]);
+        }
+
+        setGpxStatus(`ok-${validCoordinates.length}pts`);
         setRouteCoordinates(validCoordinates);
+      } else {
+        console.warn('⚠️ [GPX] La excursión no tiene gpxPath, no se cargará ruta');
+        setGpxStatus('sin-gpx');
       }
 
       console.log('✅ loadExcursionDetails COMPLETE');
@@ -181,7 +183,7 @@ const ExcursionDetailScreen = () => {
   })();
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={shared.container}>
       {/* Imagen */}
       {excursion.imageUrl && (
         <Image source={{ uri: excursion.imageUrl }} style={styles.headerImage} />
@@ -210,7 +212,7 @@ const ExcursionDetailScreen = () => {
 
         {/* Estadísticas de la ruta */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Estadísticas de la Ruta</Text>
+          <Text style={shared.sectionTitle}>Estadísticas de la Ruta</Text>
           <View style={styles.statsGrid}>
             <StatCard
               label="Distancia"
@@ -235,54 +237,52 @@ const ExcursionDetailScreen = () => {
           </View>
         </View>
 
-        {/* Mapa */}
-        {routeCoordinates.length > 0 && (
-          <View style={styles.mapSection}>
-            <Text style={styles.sectionTitle}>Ruta</Text>
-            <MapView
-              style={styles.map}
-              initialRegion={mapInitialRegion}
-              scrollEnabled={true}
-              zoomEnabled={true}
-            >
-              {/* Polyline de la ruta */}
+        {/* Mapa — siempre visible para diagnosticar */}
+        <View style={styles.mapSection}>
+          <Text style={shared.sectionTitle}>Ruta</Text>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={mapInitialRegion}
+            scrollEnabled={false}
+            zoomEnabled={true}
+            onMapReady={() => {
+              console.log('✅ [MAP] onMapReady — Google Maps inicializado correctamente');
+              setMapReady(true);
+            }}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              console.log(`📐 [MAP] onLayout — dimensiones: ${width}x${height}px`);
+            }}
+          >
+            {routeCoordinates.length > 0 && (
               <Polyline
                 coordinates={routeCoordinates}
                 strokeColor={colors.primaryGradientStart}
                 strokeWidth={3}
               />
+            )}
 
-              {/* Marcador del punto de encuentro */}
-              <Marker
-                coordinate={{
-                  latitude: excursion.meetingLat,
-                  longitude: excursion.meetingLng,
-                }}
-                title={excursion.meetingPoint}
-                description="Punto de encuentro"
-                pinColor={colors.primaryGradientStart}
-              />
+            <Marker
+              coordinate={{ latitude: excursion.meetingLat, longitude: excursion.meetingLng }}
+              title={excursion.meetingPoint}
+              description="Punto de encuentro"
+              pinColor={colors.primaryGradientStart}
+            />
 
-              {/* Marcador del inicio de ruta */}
-              {routeCoordinates.length > 0 && (
-                <Marker
-                  coordinate={routeCoordinates[0]}
-                  title="Inicio de ruta"
-                  pinColor="green"
-                />
-              )}
+            {routeCoordinates.length > 0 && (
+              <Marker coordinate={routeCoordinates[0]} title="Inicio de ruta" pinColor="green" />
+            )}
+            {routeCoordinates.length > 1 && (
+              <Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Final de ruta" pinColor="red" />
+            )}
+          </MapView>
 
-              {/* Marcador del final de ruta */}
-              {routeCoordinates.length > 1 && (
-                <Marker
-                  coordinate={routeCoordinates[routeCoordinates.length - 1]}
-                  title="Final de ruta"
-                  pinColor="red"
-                />
-              )}
-            </MapView>
-          </View>
-        )}
+          {/* Debug temporal — eliminar tras diagnosticar */}
+          <Text style={styles.debugText}>
+            {`Mapa: ${mapReady ? '✅ listo' : '⏳ cargando'} | GPX: ${gpxStatus}`}
+          </Text>
+        </View>
 
         {/* Botón de unirse */}
         <PrimaryButton
@@ -318,10 +318,6 @@ const StatCard: React.FC<{ label: string; value: string; icon: string }> = ({
 export default ExcursionDetailScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSoft,
-  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -393,12 +389,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
   statsSection: {
     marginBottom: 16,
   },
@@ -437,5 +427,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 400,
     borderRadius: 12,
+  },
+  debugText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

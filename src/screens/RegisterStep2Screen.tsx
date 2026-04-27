@@ -5,23 +5,24 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp } from "@react-navigation/native";
 
 import { colors } from "../theme/colors";
+import { shared } from "../theme/styles";
 import { RootStackParamList } from "../navigation/AppNavigation";
-import { RouteProp } from "@react-navigation/native";
 import { checkUsernameExists, completeRegistration } from "../services/authService";
 import { supabase } from "../services/supabaseClient";
 import { AuthContext } from "../context/AuthContext";
 
 type Props = {
-  navigation: NativeStackNavigationProp<
-    RootStackParamList,
-    "RegisterStep2"
-  >;
+  navigation: NativeStackNavigationProp<RootStackParamList, "RegisterStep2">;
   route: RouteProp<RootStackParamList, "RegisterStep2">;
 };
 
@@ -47,159 +48,125 @@ const RegisterStep2Screen: React.FC<Props> = ({ navigation, route }) => {
     return true;
   };
 
-const handleCreateAccount = async () => {
-  if (!validate()) return;
+  const handleCreateAccount = async () => {
+    if (!validate()) return;
 
-  try {
-    const exists = await checkUsernameExists(username);
+    try {
+      const exists = await checkUsernameExists(username);
 
-    if (exists) {
-      setError("Este nombre de usuario ya está en uso");
-      return;
+      if (exists) {
+        setError("Este nombre de usuario ya está en uso");
+        return;
+      }
+
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
+      }
+
+      const token = data?.session?.access_token;
+      if (!token) {
+        setError("Error obteniendo token de sesión");
+        return;
+      }
+
+      await completeRegistration(username, token);
+
+      if (data.session) {
+        setSession(data.session);
+      }
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "ExcursionList" }],
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Error creando la cuenta");
     }
-
-    // Crear usuario en Supabase
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (signUpError) {
-      setError(signUpError.message);
-      return;
-    }
-
-    // Obtener el token de la sesión
-    const token = data?.session?.access_token;
-    if (!token) {
-      setError("Error obteniendo token de sesión");
-      return;
-    }
-
-    // Completar registro con el username
-    await completeRegistration(username, token);
-
-    // Guardar sesión en contexto (que a su vez la guarda en AsyncStorage y Supabase)
-    if (data.session) {
-      setSession(data.session);
-    }
-
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "ExcursionList" }],
-    });
-
-  } catch (error) {
-    console.error(error);
-    setError("Error creando la cuenta");
-  }
-};
+  };
 
   return (
-    <View style={styles.container}>
+    <View style={shared.container}>
       <LinearGradient
-        colors={[
-          colors.primaryGradientStart,
-          colors.primaryGradientEnd,
-        ]}
-        style={styles.header}
+        colors={[colors.primaryGradientStart, colors.primaryGradientEnd]}
+        style={shared.header}
       >
         <Pressable onPress={() => navigation.goBack()}>
-          <MaterialDesignIcons
-            name="arrow-left"
-            size={24}
-            color={colors.white}
-          />
+          <MaterialDesignIcons name="arrow-left" size={24} color={colors.white} />
         </Pressable>
 
         <View>
-          <Text style={styles.headerTitle}>Crear Cuenta</Text>
-          <Text style={styles.headerSubtitle}>Paso 2 de 2</Text>
+          <Text style={shared.headerTitle}>Crear Cuenta</Text>
+          <Text style={shared.headerSubtitle}>Paso 2 de 2</Text>
         </View>
       </LinearGradient>
 
-      <View style={styles.content}>
-
-        {/* ICONO */}
-        <View style={styles.iconCircle}>
-          <MaterialDesignIcons
-            name="account-outline"
-            size={32}
-            color={colors.white}
-          />
-        </View>
-
-        <Text style={styles.title}>
-          Elige tu nombre de usuario
-        </Text>
-
-        <Text style={styles.subtitle}>
-          Será tu identidad en la comunidad
-        </Text>
-
-        {/* INPUT */}
-        <View style={styles.card}>
-          <Text style={styles.label}>Nombre de usuario</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="tu_usuario"
-            autoCapitalize="none"
-            value={username}
-            onChangeText={setUsername}
-          />
-
-          {error !== "" && (
-            <Text style={styles.error}>{error}</Text>
-          )}
-
-          <View style={styles.rules}>
-            <Text style={styles.rule}>✓ Entre 3 y 20 caracteres</Text>
-            <Text style={styles.rule}>
-              ✓ Solo letras, números y guiones bajos (_)
-            </Text>
-            <Text style={styles.rule}>
-              ✓ Sin espacios ni caracteres especiales
-            </Text>
-          </View>
-        </View>
-
-        {/* INFO BOX */}
-        <View style={styles.infoBox}>
-          <MaterialDesignIcons
-            name="check-circle-outline"
-            size={20}
-            color={colors.primaryGradientStart}
-          />
-
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoTitle}>
-              ¿Por qué un nombre de usuario?
-            </Text>
-
-            <Text style={styles.infoText}>
-              Tu nombre de usuario será visible para otros senderistas.
-              Elige uno que te represente y sea fácil de recordar.
-            </Text>
-          </View>
-        </View>
-
-        {/* BUTTON */}
-        <Pressable
-          style={styles.button}
-          onPress={handleCreateAccount}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
         >
-          <MaterialDesignIcons
-            name="check"
-            size={20}
-            color={colors.white}
-          />
+          <View style={shared.content}>
 
-          <Text style={styles.buttonText}>
-            Crear Cuenta
-          </Text>
-        </Pressable>
-      </View>
+            <View style={shared.iconCircle}>
+              <MaterialDesignIcons name="account-outline" size={32} color={colors.white} />
+            </View>
+
+            <Text style={[shared.screenTitle, styles.titleCentered]}>
+              Elige tu nombre de usuario
+            </Text>
+
+            <Text style={styles.subtitle}>Será tu identidad en la comunidad</Text>
+
+            {/* INPUT */}
+            <View style={[shared.card, { marginBottom: 20 }]}>
+              <Text style={shared.label}>Nombre de usuario</Text>
+              <TextInput
+                style={shared.input}
+                placeholder="tu_usuario"
+                autoCapitalize="none"
+                value={username}
+                onChangeText={setUsername}
+              />
+              {error !== "" && <Text style={shared.errorText}>{error}</Text>}
+              <View style={styles.rules}>
+                <Text style={styles.rule}>✓ Entre 3 y 20 caracteres</Text>
+                <Text style={styles.rule}>✓ Solo letras, números y guiones bajos (_)</Text>
+                <Text style={styles.rule}>✓ Sin espacios ni caracteres especiales</Text>
+              </View>
+            </View>
+
+            {/* INFO BOX */}
+            <View style={styles.infoBox}>
+              <MaterialDesignIcons
+                name="check-circle-outline"
+                size={20}
+                color={colors.primaryGradientStart}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoTitle}>¿Por qué un nombre de usuario?</Text>
+                <Text style={styles.infoText}>
+                  Tu nombre de usuario será visible para otros senderistas.
+                  Elige uno que te represente y sea fácil de recordar.
+                </Text>
+              </View>
+            </View>
+
+            {/* BOTÓN */}
+            <Pressable style={shared.primaryButton} onPress={handleCreateAccount}>
+              <MaterialDesignIcons name="check" size={20} color={colors.white} />
+              <Text style={shared.primaryButtonText}>Crear Cuenta</Text>
+            </Pressable>
+
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -207,124 +174,36 @@ const handleCreateAccount = async () => {
 export default RegisterStep2Screen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSoft,
-  },
-
-  header: {
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    flexDirection: "row",
-    gap: 16,
-  },
-
-  headerTitle: {
-    color: colors.white,
-    fontSize: 20,
-    fontWeight: "600",
-  },
-
-  headerSubtitle: {
-    color: "#D1FAE5",
-    fontSize: 12,
-  },
-
-  content: {
-    padding: 24,
-  },
-
-  iconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: colors.primaryGradientStart,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
+  titleCentered: {
     textAlign: "center",
-    color: colors.textPrimary,
   },
-
   subtitle: {
     textAlign: "center",
     color: colors.textSecondary,
     marginBottom: 24,
   },
-
-  card: {
-    backgroundColor: colors.white,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-
-  label: {
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-
-  input: {
-    backgroundColor: colors.grayLight,
-    borderRadius: 10,
-    padding: 10,
-  },
-
   rules: {
     marginTop: 12,
   },
-
   rule: {
     fontSize: 12,
     color: colors.textSecondary,
   },
-
-  error: {
-    color: "red",
-    marginTop: 6,
-    fontSize: 12,
-  },
-
   infoBox: {
     flexDirection: "row",
     gap: 10,
-    backgroundColor: "#E6F4EF",
+    backgroundColor: colors.infoBg,
     borderRadius: 14,
     padding: 16,
     marginBottom: 24,
   },
-
   infoTitle: {
     fontWeight: "600",
     color: colors.textPrimary,
   },
-
   infoText: {
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 4,
-  },
-
-  button: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.primaryGradientStart,
-    padding: 16,
-    borderRadius: 12,
-  },
-
-  buttonText: {
-    color: colors.white,
-    fontWeight: "600",
-    fontSize: 16,
   },
 });

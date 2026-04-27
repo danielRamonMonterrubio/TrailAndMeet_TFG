@@ -13,6 +13,7 @@ import { RootStackParamList } from "../navigation/AppNavigation";
 
 import LinearGradient from "react-native-linear-gradient";
 import { colors } from "../theme/colors";
+import { shared } from "../theme/styles";
 import { Alert } from "react-native";
 
 import FormCard from "../components/form/FormCard";
@@ -178,7 +179,7 @@ const CreateExcursionScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "android" ? "height" : "padding"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ flex: 1 }}
     >
       <ScrollView style={styles.container}>
@@ -206,7 +207,7 @@ const CreateExcursionScreen = () => {
 
           {/* GPX */}
           <FormCard>
-            <Text style={styles.label}>Archivo GPX *</Text>
+            <Text style={shared.label}>Archivo GPX *</Text>
             <FilePickerInput
                 fileName={file?.name || ""}
                 onFileSelected={(f) => setFile(f)}
@@ -309,20 +310,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   headerTitle: {
-    color: "white",
+    color: colors.white,
     fontSize: 20,
     fontWeight: "700",
   },
   headerSubtitle: {
-    color: "white",
+    color: colors.white,
     marginTop: 4,
   },
   content: {
     padding: 16,
-  },
-  label: {
-    fontWeight: "600",
-    marginBottom: 6,
   },
   helperText: {
     fontSize: 12,

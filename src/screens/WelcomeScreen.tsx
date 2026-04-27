@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
 
   subtitle: {
     fontSize: 16,
-    color: "#D1FAE5",
+    color: colors.headerSubtitle,
     marginTop: 8,
   },
 
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
 
   featureDescription: {
     fontSize: 14,
-    color: "#D1FAE5",
+    color: colors.headerSubtitle,
   },
 
   buttons: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   terms: {
     textAlign: "center",
     fontSize: 12,
-    color: "#D1FAE5",
+    color: colors.headerSubtitle,
     marginTop: 8,
   },
 });

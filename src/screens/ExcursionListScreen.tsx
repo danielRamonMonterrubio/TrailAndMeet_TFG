@@ -17,6 +17,7 @@ import { Excursion, EXCURSION_DIFFICULTIES, EXCURSION_TYPES, ExcursionDifficulty
 import ExcursionCard from "../components/cards/ExcursionCard";
 import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
+import { shared } from "../theme/styles";
 import { RootStackParamList } from "../navigation/AppNavigation";
 import { AuthContext } from "../context/AuthContext";
 
@@ -113,7 +114,7 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={shared.container}>
       <BrandHeader
         rightIconName="logout"
         onRightIconPress={handleLogout}
@@ -283,10 +284,6 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
 export default ExcursionListScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSoft,
-  },
   content: {
     paddingHorizontal: 16,
     paddingVertical: 24,
