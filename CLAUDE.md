@@ -14,19 +14,25 @@ App móvil React Native (Android/iOS) para organizar y unirse a excursiones de m
 App.tsx                    -> AuthProvider + AppNavigator
 src/
   navigation/
-    AppNavigation.tsx      -> Stack único; AuthStack vs AppStack según session. RootStackParamList aquí.
-  screens/                 -> Welcome, Login, RegisterStep1, RegisterStep2, ExcursionList, CreateExcursion, ExcursionDetail
+    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones).
+                             RootStackParamList define todos los screens. TabPress listeners en Tab.Screen resetean stacks internos.
+  screens/                 -> Welcome, Login, RegisterStep1, RegisterStep2, ExcursionList, MyExcursions, CreateExcursion, ExcursionDetail
   components/
     buttons/               -> AuthButton, PrimaryButton
     cards/                 -> ExcursionCard, FeatureItem
     form/                  -> FormCard, FormInput, FormSelect, FilePickerInput, DatePickerInput, TimePickerInput, SlotsInput
-    headers/               -> BrandHeader
+    headers/               -> BrandHeader (con logout button opcional)
   context/
     AuthContext.tsx        -> Sesión persistida en AsyncStorage + sincronizada con supabase.auth
   services/
     supabaseClient.ts      -> createClient con AsyncStorage como storage
     authService.ts         -> checkEmail/Username, login, logout, completeRegistration (todos vía Edge Functions)
-    excursionService.ts, excursionDetailService.ts, excursionCreationService.ts, excursionStorageService.ts, gpxParserService.ts
+    excursionService.ts    -> getFilteredExcursions (filtrar por dificultad/tipo)
+    excursionDetailService.ts -> getExcursionDetail (con map data si está disponible)
+    excursionInteractionService.ts -> joinExcursion, leaveExcursion, getMyExcursions (todas vía Edge Functions)
+    excursionCreationService.ts -> createExcursionWithGPX
+    excursionStorageService.ts -> uploadGPXFile, downloadGPX
+    gpxParserService.ts    -> parseGPXContent (local parsing)
     mappers/excursionMapper.ts
   models/Excursion.ts      -> Tipos ExcursionDifficulty, ExcursionType, interfaz Excursion
   types/
@@ -36,7 +42,7 @@ src/
     colors.ts              -> Paleta centralizada (primaryGradientStart/End, textPrimary/Secondary/Muted, etc.)
     styles.ts              -> `shared` StyleSheet con container, content, header, headerTitle, headerSubtitle, screenTitle, sectionTitle, card, label, input, passwordRow, errorText, primaryButton, primaryButtonText, iconCircle, row
 backend/
-  supabase/functions/      -> auth-check-email, auth-check-username, auth-complete-registration, auth-login, auth-logout, create-excursion-with-gpx, download-gpx, get-filtered-excursions, parse-and-create-excursion
+  supabase/functions/      -> auth-check-email, auth-check-username, auth-complete-registration, auth-login, auth-logout, create-excursion-with-gpx, download-gpx, get-excursion-detail, get-filtered-excursions, get-my-excursions, join-excursion, leave-excursion, parse-and-create-excursion
 android/
   app/
     debug.keystore         -> Keystore local del proyecto (NO ~/.android/debug.keystore)
@@ -82,10 +88,63 @@ npm run lint
 
 ## Estado actual (2026-04-27)
 
-- Login, registro (2 pasos), listar excursiones con filtros, crear excursión con GPX, detalle de excursión con mapa: funcionando.
-- Pendiente: funcionalidad de "Unirse a excursión" (botón hace Alert placeholder en `ExcursionDetailScreen`).
-- Logs y debug text temporales en `ExcursionDetailScreen` (`gpxStatus`, `mapReady`, console.log con emoji) — quitar cuando el mapa esté validado en varios dispositivos.
+### ✅ Funcionalidades implementadas:
+- **Login y registro** (2 pasos) ✅
+- **Listar excursiones con filtros** (dificultad/tipo) ✅
+- **Crear excursión con GPX** ✅
+- **Detalle de excursión con mapa** ✅
+  - Lazy loading con `InteractionManager` + timeout 5s
+  - Si MapView tarda >5s, muestra error; app sigue responsive
+  - BrandHeader removido; detalle es limpio
+  - Números formateados: 2 decimales + coma española (45,32 km)
+- **Unirse a excursión** ✅ (botón funcional en ExcursionDetail)
+- **Dejar excursión** ✅
+- **Mi Excursiones** ✅ (filtros: todas/organizadas/unidas)
+- **Tab navigation** ✅ (Explorar + Mis Excursiones con estado independiente)
+  - TabPress listeners resetean stacks internos usando nested navigate
+  - Switching tabs no muestra detail screens antiguos
+- **Logout** ✅ (disponible en ExcursionList y MyExcursions via BrandHeader)
 
-## Memoria persistente
+### 🔧 Detalles técnicos por pantalla:
 
-Hay un sistema de memoria del agente en `~/.claude/projects/.../memory/` con preferencias del usuario y feedback acumulado. Consultarlo cuando aparezca contexto relevante de conversaciones anteriores.
+**ExcursionDetailScreen**:
+- Estados: `mapVisible`, `mapReady`, `mapError`
+- Map renderiza tras `InteractionManager.runAfterInteractions()` con timeout
+- Si timeout: error después 5s, usuario sigue viendo info de excursión
+- Helper `formatNumber()`: convierte 45.32 → "45,32"
+- Sin header; sin logout; limpio
+
+**AppNavigation**:
+- `TabNavigator` con 2 tabs: "ExcursionList" y "MyExcursions"
+- Cada tab tiene su Stack interno
+- TabPress listeners: `navigation.navigate('ExcursionList', { screen: 'ExcursionList' })` etc.
+  - Resetea stack interno al presionar tab activo/inactivo
+  - Evita que detalle anterior persista en otro tab
+
+**ExcursionListScreen**:
+- Filtros funcionales (dificultad/tipo)
+- Logout button en header (via `BrandHeader`)
+- `useFocusEffect`: recarga excursiones cuando screen recibe foco
+
+**MyExcursionsScreen**:
+- Tres filtros: todas / organizadas / unidas
+- Logout button en header
+- `useFocusEffect`: recarga excursiones cuando screen recibe foco
+
+### ⚠️ Gotchas actuales:
+
+**MapView en dispositivo físico**:
+- Device tiene Google Play Services desactualizado → mapa no carga (solo tiles en blanco)
+- No es error del código; timeout workaround previene freeze
+- En emulador funciona bien
+- SHA1 del keystore: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` (ya registrado en Google Cloud)
+
+**Debug text**:
+- `ExcursionDetailScreen` tiene `console.log` con emoji y text en pantalla (`gpxStatus`, `mapReady`)
+- Quitar cuando mapa esté validado en múltiples dispositivos
+
+### 📋 Próximas sesiones:
+- Testear en varios dispositivos (Android/iOS con Play Services actualizado)
+- Remover debug text de ExcursionDetailScreen
+- Validar que join/leave funciona en todos los casos edge
+- Mejorar UX durante carga de mapa (progress indicator, maybe?)

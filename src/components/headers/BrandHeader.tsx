@@ -6,13 +6,11 @@ import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-
 import { colors } from "../../theme/colors";
 
 type Props = {
-  rightIconName?: React.ComponentProps<typeof MaterialDesignIcons>["name"];
-  onRightIconPress?: () => void;
+  onLogout?: () => void;
 };
 
 const BrandHeader: React.FC<Props> = ({
-  rightIconName,
-  onRightIconPress,
+  onLogout,
 }) => {
   return (
     <LinearGradient
@@ -33,14 +31,13 @@ const BrandHeader: React.FC<Props> = ({
           <Text style={styles.subtitle}>Conecta con la naturaleza</Text>
         </View>
 
-        {rightIconName ? (
+        {onLogout ? (
           <Pressable
             hitSlop={10}
-            onPress={onRightIconPress}
-            disabled={!onRightIconPress}
+            onPress={onLogout}
           >
             <MaterialDesignIcons
-              name={rightIconName}
+              name="logout"
               size={26}
               color={colors.white}
             />

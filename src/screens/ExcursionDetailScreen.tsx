@@ -7,14 +7,18 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  InteractionManager,
 } from 'react-native';
 import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
 import excursionDetailService, { ExcursionDetail } from '../services/excursionDetailService';
+import { excursionInteractionService } from '../services/excursionInteractionService';
 import PrimaryButton from '../components/buttons/PrimaryButton';
+import { RootStackParamList } from '../navigation/AppNavigation';
 
 interface RouteParams {
   id: string;
@@ -25,7 +29,18 @@ interface GpxCoordinate {
   longitude: number;
 }
 
-const ExcursionDetailScreen = () => {
+type Props = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'ExcursionDetail'>;
+};
+
+// Función auxiliar para formatear números españoles (2 decimales, coma como separador)
+const formatNumber = (value: number | undefined): string => {
+  if (value === undefined || value === null) return '0,00';
+  const formatted = Number(value).toFixed(2);
+  return formatted.replace('.', ',');
+};
+
+const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
   const route = useRoute();
   const { id } = route.params as RouteParams;
 
@@ -35,10 +50,34 @@ const ExcursionDetailScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [gpxStatus, setGpxStatus] = useState<string>('pendiente');
+  const [joiningOrLeaving, setJoiningOrLeaving] = useState(false);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [mapError, setMapError] = useState<boolean>(false);
 
   useEffect(() => {
     loadExcursionDetails();
   }, [id]);
+
+  // Renderizar el mapa después de que los datos estén listos (lazy loading)
+  useEffect(() => {
+    if (excursion && !loading) {
+      // Esperar a que terminen interacciones (animaciones, gestos) antes de intentar cargar el mapa
+      const task = InteractionManager.runAfterInteractions(() => {
+        setMapVisible(true);
+        
+        // Timeout de 5 segundos - si el mapa no carga, mostrar error
+        const timeoutId = setTimeout(() => {
+          if (!mapReady) {
+            console.error('❌ [MAP] Timeout: El mapa no se cargó en 5 segundos');
+            setMapError(true);
+          }
+        }, 5000);
+        
+        return () => clearTimeout(timeoutId);
+      });
+      return () => task.cancel();
+    }
+  }, [excursion, loading, mapReady]);
 
   const loadExcursionDetails = async () => {
     try {
@@ -141,11 +180,62 @@ const ExcursionDetailScreen = () => {
     return allTrackpoints;
   };
 
+  const handleJoinExcursion = async () => {
+    if (!excursion) return;
+
+    setJoiningOrLeaving(true);
+    try {
+      await excursionInteractionService.joinExcursion(excursion.id);
+      Alert.alert('Éxito', '¡Te has unido a la excursión!');
+      // Recargar los detalles para actualizar isJoined y availableSpots
+      const updatedDetail = await excursionDetailService.getExcursionDetail(excursion.id);
+      setExcursion(updatedDetail);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      Alert.alert('Error', message);
+    } finally {
+      setJoiningOrLeaving(false);
+    }
+  };
+
+  const handleLeaveExcursion = async () => {
+    if (!excursion) return;
+
+    Alert.alert(
+      'Confirmar',
+      '¿Estás seguro de que deseas abandonar esta excursión?',
+      [
+        { text: 'Cancelar', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Abandonar',
+          onPress: async () => {
+            setJoiningOrLeaving(true);
+            try {
+              await excursionInteractionService.leaveExcursion(excursion.id);
+              Alert.alert('Éxito', 'Has abandonado la excursión');
+              // Recargar los detalles para actualizar isJoined y availableSpots
+              const updatedDetail = await excursionDetailService.getExcursionDetail(excursion.id);
+              setExcursion(updatedDetail);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'Error desconocido';
+              Alert.alert('Error', message);
+            } finally {
+              setJoiningOrLeaving(false);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primaryGradientStart} />
-        <Text style={styles.loadingText}>Cargando detalles...</Text>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primaryGradientStart} />
+          <Text style={styles.loadingText}>Cargando detalles...</Text>
+        </View>
       </View>
     );
   }
@@ -153,7 +243,9 @@ const ExcursionDetailScreen = () => {
   if (error || !excursion) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>⚠️ {error || 'Error cargando excursión'}</Text>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>⚠️ {error || 'Error cargando excursión'}</Text>
+        </View>
       </View>
     );
   }
@@ -183,11 +275,12 @@ const ExcursionDetailScreen = () => {
   })();
 
   return (
-    <ScrollView style={shared.container}>
-      {/* Imagen */}
-      {excursion.imageUrl && (
-        <Image source={{ uri: excursion.imageUrl }} style={styles.headerImage} />
-      )}
+    <View style={styles.centerContainer}>
+      <ScrollView style={styles.scrollContainer}>
+        {/* Imagen */}
+        {excursion.imageUrl && (
+          <Image source={{ uri: excursion.imageUrl }} style={styles.headerImage} />
+        )}
 
       {/* Header con título */}
       <LinearGradient
@@ -216,81 +309,119 @@ const ExcursionDetailScreen = () => {
           <View style={styles.statsGrid}>
             <StatCard
               label="Distancia"
-              value={`${excursion.distanciaTotal} km`}
+              value={`${formatNumber(excursion.distanciaTotal)} km`}
               icon="📏"
             />
             <StatCard
               label="Elevación Máx"
-              value={`${excursion.elevacionMaxima} m`}
+              value={`${formatNumber(excursion.elevacionMaxima)} m`}
               icon="⬆️"
             />
             <StatCard
               label="Elevación Mín"
-              value={`${excursion.elevacionMinima} m`}
+              value={`${formatNumber(excursion.elevacionMinima)} m`}
               icon="⬇️"
             />
             <StatCard
               label="Desnivel Positivo"
-              value={`${excursion.desnivelPositivo} m`}
+              value={`${formatNumber(excursion.desnivelPositivo)} m`}
               icon="📈"
             />
           </View>
         </View>
 
-        {/* Mapa — siempre visible para diagnosticar */}
+        {/* Mapa — solo se renderiza cuando está completamente listo */}
         <View style={styles.mapSection}>
           <Text style={shared.sectionTitle}>Ruta</Text>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={styles.map}
-            initialRegion={mapInitialRegion}
-            scrollEnabled={false}
-            zoomEnabled={true}
-            onMapReady={() => {
-              console.log('✅ [MAP] onMapReady — Google Maps inicializado correctamente');
-              setMapReady(true);
-            }}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              console.log(`📐 [MAP] onLayout — dimensiones: ${width}x${height}px`);
-            }}
-          >
-            {routeCoordinates.length > 0 && (
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeColor={colors.primaryGradientStart}
-                strokeWidth={3}
+          {mapReady ? (
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={styles.map}
+              initialRegion={mapInitialRegion}
+              scrollEnabled={false}
+              zoomEnabled={true}
+              onMapReady={() => {
+                console.log('✅ [MAP] onMapReady — Google Maps inicializado correctamente');
+                setMapReady(true);
+              }}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                console.log(`📐 [MAP] onLayout — dimensiones: ${width}x${height}px`);
+              }}
+            >
+              {routeCoordinates.length > 0 && (
+                <Polyline
+                  coordinates={routeCoordinates}
+                  strokeColor={colors.primaryGradientStart}
+                  strokeWidth={3}
+                />
+              )}
+
+              <Marker
+                coordinate={{ latitude: excursion.meetingLat, longitude: excursion.meetingLng }}
+                title={excursion.meetingPoint}
+                description="Punto de encuentro"
+                pinColor={colors.primaryGradientStart}
               />
-            )}
 
-            <Marker
-              coordinate={{ latitude: excursion.meetingLat, longitude: excursion.meetingLng }}
-              title={excursion.meetingPoint}
-              description="Punto de encuentro"
-              pinColor={colors.primaryGradientStart}
-            />
-
-            {routeCoordinates.length > 0 && (
-              <Marker coordinate={routeCoordinates[0]} title="Inicio de ruta" pinColor="green" />
-            )}
-            {routeCoordinates.length > 1 && (
-              <Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Final de ruta" pinColor="red" />
-            )}
-          </MapView>
+              {routeCoordinates.length > 0 && (
+                <Marker coordinate={routeCoordinates[0]} title="Inicio de ruta" pinColor="green" />
+              )}
+              {routeCoordinates.length > 1 && (
+                <Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} title="Final de ruta" pinColor="red" />
+              )}
+            </MapView>
+          ) : mapError ? (
+            <View style={[styles.map, styles.mapPlaceholder]}>
+              <Text style={styles.mapLoadingText}>❌ No se pudo cargar el mapa</Text>
+              <Text style={[styles.mapLoadingText, { fontSize: 12, marginTop: 8 }]}>
+                Los Servicios de Google Play no están actualizados o ha habido un error al consultar google maps
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.map, styles.mapPlaceholder]}>
+              <ActivityIndicator size="large" color={colors.primaryGradientStart} />
+              <Text style={styles.mapLoadingText}>Cargando mapa...</Text>
+            </View>
+          )}
 
           {/* Debug temporal — eliminar tras diagnosticar */}
           <Text style={styles.debugText}>
-            {`Mapa: ${mapReady ? '✅ listo' : '⏳ cargando'} | GPX: ${gpxStatus}`}
+            {`Mapa: ${mapReady ? '✅ listo' : mapError ? '❌ error' : '⏳ cargando'} | GPX: ${gpxStatus}`}
           </Text>
         </View>
 
-        {/* Botón de unirse */}
-        <PrimaryButton
-          title="Unirse a la Excursión"
-          onPress={() => Alert.alert('Pronto', 'Funcionalidad de unirse próximamente')}
-        />
+        {/* Sección de acciones */}
+        <View style={styles.actionsSection}>
+          {excursion.isOrganizer ? (
+            <View style={styles.organizerBadge}>
+              <Text style={styles.organizerText}>👤 Organizador de esta excursión</Text>
+            </View>
+          ) : excursion.isJoined ? (
+            <>
+              <PrimaryButton
+                title={joiningOrLeaving ? 'Procesando...' : 'Abandonar Excursión'}
+                onPress={handleLeaveExcursion}
+              />
+              {joiningOrLeaving && <ActivityIndicator size="small" color={colors.primaryGradientStart} />}
+            </>
+          ) : excursion.availableSpots > 0 ? (
+            <>
+              <PrimaryButton
+                title={joiningOrLeaving ? 'Uniéndose...' : 'Unirse a la Excursión'}
+                onPress={handleJoinExcursion}
+              />
+              {joiningOrLeaving && <ActivityIndicator size="small" color={colors.primaryGradientStart} />}
+            </>
+          ) : (
+            <View style={styles.noSpacesBadge}>
+              <Text style={styles.noSpacesText}>❌ No hay plazas disponibles</Text>
+            </View>
+          )}
+        </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -320,9 +451,15 @@ export default ExcursionDetailScreen;
 const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
+    backgroundColor: colors.backgroundSoft,
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSoft,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   loadingText: {
     marginTop: 12,
@@ -428,10 +565,51 @@ const styles = StyleSheet.create({
     height: 400,
     borderRadius: 12,
   },
+  mapPlaceholder: {
+    backgroundColor: colors.backgroundSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapLoadingText: {
+    marginTop: 12,
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   debugText: {
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 4,
     textAlign: 'center',
+  },
+  actionsSection: {
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  organizerBadge: {
+    backgroundColor: colors.primaryGradientStart,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  organizerText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noSpacesBadge: {
+    backgroundColor: colors.backgroundSoft,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+  },
+  noSpacesText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

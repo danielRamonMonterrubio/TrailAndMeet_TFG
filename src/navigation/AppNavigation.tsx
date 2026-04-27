@@ -1,9 +1,12 @@
 import React, { useContext } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { View } from "react-native";
+import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 
 import ExcursionListScreen from "../screens/ExcursionListScreen";
+import MyExcursionsScreen from "../screens/MyExcursionsScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterStep1Screen from "../screens/RegisterStep1Screen";
@@ -23,11 +26,13 @@ export type RootStackParamList = {
     password: string;
   };
   ExcursionList: undefined;
+  MyExcursions: undefined;
   CreateExcursion: undefined;
   ExcursionDetail: { id: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<RootStackParamList>();
 
 // Stack de autenticación
 const AuthStack = () => (
@@ -43,8 +48,8 @@ const AuthStack = () => (
   </Stack.Navigator>
 );
 
-// Stack de aplicación (usuario logeado)
-const AppStack = () => (
+// Stack para ExcursionList con su navegación interna
+const ExcursionListStack = () => (
   <Stack.Navigator
     screenOptions={{
       headerShown: false,
@@ -52,8 +57,93 @@ const AppStack = () => (
   >
     <Stack.Screen name="ExcursionList" component={ExcursionListScreen} />
     <Stack.Screen name="CreateExcursion" component={CreateExcursionScreen} />
-    <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
+    <Stack.Screen
+      name="ExcursionDetail"
+      component={ExcursionDetailScreen}
+      options={{
+        tabBarStyle: { display: 'none' },
+      }}
+    />
   </Stack.Navigator>
+);
+
+// Stack para MyExcursions con su navegación interna
+const MyExcursionsStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+    }}
+  >
+    <Stack.Screen name="MyExcursions" component={MyExcursionsScreen} />
+    <Stack.Screen
+      name="ExcursionDetail"
+      component={ExcursionDetailScreen}
+      options={{
+        tabBarStyle: { display: 'none' },
+      }}
+    />
+  </Stack.Navigator>
+);
+
+// Bottom Tab Navigator
+const AppStack = () => (
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      headerShown: false,
+      tabBarActiveTintColor: colors.primaryGradientStart,
+      tabBarInactiveTintColor: colors.textMuted,
+      tabBarStyle: {
+        backgroundColor: colors.white,
+        borderTopWidth: 1,
+        borderTopColor: colors.grayLight,
+      },
+      tabBarIcon: ({ color, size }) => {
+        let iconName: React.ComponentProps<typeof MaterialDesignIcons>["name"] = "help";
+
+        if (route.name === "ExcursionList") {
+          iconName = "map";
+        } else if (route.name === "MyExcursions") {
+          iconName = "briefcase";
+        }
+
+        return <MaterialDesignIcons name={iconName} size={size} color={color} />;
+      },
+      tabBarLabel: route.name === "ExcursionList" ? "Explorar" : "Mis Excursiones",
+    })}
+  >
+    <Tab.Screen
+      name="ExcursionList"
+      component={ExcursionListStack}
+      options={{
+        title: "Explorar",
+      }}
+      listeners={({ navigation, route }) => ({
+        tabPress: (e) => {
+          // Navegrar al screen inicial del stack usando nested navigation
+          // Esto resetea el stack a la pantalla raíz
+          navigation.navigate('ExcursionList' as never, {
+            screen: 'ExcursionList',
+          } as never);
+        },
+      })}
+    />
+    <Tab.Screen
+      name="MyExcursions"
+      component={MyExcursionsStack}
+      options={{
+        title: "Mis Excursiones",
+      }}
+      listeners={({ navigation, route }) => ({
+        tabPress: (e) => {
+          // Navegrar al screen inicial del stack usando nested navigation
+          // Esto resetea el stack a la pantalla raíz
+          navigation.navigate('MyExcursions' as never, {
+            screen: 'MyExcursions',
+          } as never);
+        },
+      })}
+    />
+  </Tab.Navigator>
 );
 
 const AppNavigator = () => {
