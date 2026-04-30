@@ -28,16 +28,24 @@ export async function handler(req: Request): Promise<Response> {
 
     const token = authHeader.replace('Bearer ', '')
 
-    const supabase = createClient(
+    const authClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: { headers: { Authorization: authHeader } },
         auth: { autoRefreshToken: false, persistSession: false },
       }
     )
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: { autoRefreshToken: false, persistSession: false },
+      }
+    )
+
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token)
 
     if (userError || !user) {
       return new Response(
@@ -59,11 +67,12 @@ export async function handler(req: Request): Promise<Response> {
 
     const list = (allExcursions ?? []) as any[]
 
-    // Cargar participaciones del usuario actual
+    // Solo participaciones accepted (pending no implica ser miembro)
     const { data: misParticipaciones, error: misPartError } = await supabase
       .from('participacion')
       .select('excursionId')
       .eq('usuarioId', user.id)
+      .eq('status', 'accepted')
 
     if (misPartError) {
       console.error('Error cargando mis participaciones:', misPartError)
@@ -91,12 +100,13 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Contar participantes para cada excursión filtrada
+    // Contar solo aceptados para calcular plazas disponibles
     const ids = filtered.map(e => e.id)
     const { data: participaciones, error: partError } = await supabase
       .from('participacion')
       .select('excursionId')
       .in('excursionId', ids)
+      .eq('status', 'accepted')
 
     if (partError) {
       console.error('Error cargando participaciones:', partError)

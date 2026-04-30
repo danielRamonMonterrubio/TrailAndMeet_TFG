@@ -56,10 +56,10 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar ventana: hasta 1h antes del inicio
+    // Validar organizador
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, fechaInicio, status')
+      .select('id, creadoPor')
       .eq('id', excursionId)
       .single()
 
@@ -70,56 +70,36 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    if (excursion.status !== 'published') {
+    if (excursion.creadoPor !== user.id) {
       return new Response(
-        JSON.stringify({ error: 'No puedes abandonar una excursión finalizada o cancelada' }),
-        { status: 409, headers: corsHeaders }
+        JSON.stringify({ error: 'Solo el organizador puede ver las solicitudes' }),
+        { status: 403, headers: corsHeaders }
       )
     }
 
-    const ONE_HOUR_MS = 60 * 60 * 1000
-    const startMs = new Date(excursion.fechaInicio).getTime()
-    if (Date.now() > startMs - ONE_HOUR_MS) {
-      return new Response(
-        JSON.stringify({ error: 'Ya no puedes abandonar la excursión (menos de 1h para el inicio)' }),
-        { status: 409, headers: corsHeaders }
-      )
-    }
-
-    // Solo abandonar si estaba aceptado. Para cancelar pending usar cancel-join-request.
-    const { data: deleted, error: deleteError } = await supabase
+    const { data, error } = await supabase
       .from('participacion')
-      .delete()
+      .select('usuarioId, fechaSolicitud, usuario:usuarioId(id, nombreUsuario, correo)')
       .eq('excursionId', excursionId)
-      .eq('usuarioId', user.id)
-      .eq('status', 'accepted')
-      .select('excursionId')
+      .eq('status', 'pending')
+      .order('fechaSolicitud', { ascending: true })
 
-    if (deleteError) {
-      console.error('Error borrando participación:', deleteError)
+    if (error) {
+      console.error('Error listando pendientes:', error)
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
+        JSON.stringify({ error: error.message }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    if (!deleted || deleted.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No estás aceptado en esta excursión' }),
-        { status: 404, headers: corsHeaders }
-      )
-    }
-
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ requests: data ?? [] }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error en leave-excursion:', error)
+    console.error('Error en get-pending-requests:', error)
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Error no identificado',
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Error no identificado' }),
       { status: 500, headers: corsHeaders }
     )
   }

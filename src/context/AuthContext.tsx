@@ -27,14 +27,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const savedSession = await AsyncStorage.getItem('auth_session');
         if (savedSession) {
           const parsedSession = JSON.parse(savedSession) as Session;
-          setSessionState(parsedSession);
           
-          // Restaurar sesión en Supabase también
-          await supabase.auth.setSession(parsedSession);
-          console.log('✅ Sesión restaurada desde AsyncStorage y sincronizada con Supabase');
+          // Restaurar sesión en Supabase primero, luego actualizar estado
+          const { error: setSessionError } = await supabase.auth.setSession(parsedSession);
+          if (setSessionError) {
+            console.error('❌ Error sincronizando sesión con Supabase:', setSessionError);
+            // Si falla, limpiar la sesión guardada
+            await AsyncStorage.removeItem('auth_session');
+          } else {
+            setSessionState(parsedSession);
+            console.log('✅ Sesión restaurada desde AsyncStorage y sincronizada con Supabase');
+          }
         }
       } catch (error) {
         console.error('Error restaurando sesión:', error);
+        // Limpiar sesión inválida
+        await AsyncStorage.removeItem('auth_session');
       } finally {
         setLoading(false);
       }
@@ -44,16 +52,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setSession = (newSession: Session | null) => {
-    setSessionState(newSession);
     if (newSession) {
-      AsyncStorage.setItem('auth_session', JSON.stringify(newSession));
-      // Sincronizar sesión con Supabase
-      supabase.auth.setSession(newSession);
+      // Guardar en AsyncStorage
+      AsyncStorage.setItem('auth_session', JSON.stringify(newSession)).catch(err => {
+        console.error('❌ Error guardando sesión en AsyncStorage:', err);
+      });
+      
+      // Sincronizar con Supabase (sin esperar, pero log en caso de error)
+      supabase.auth.setSession(newSession).catch(err => {
+        console.error('❌ Error sincronizando sesión con Supabase:', err);
+      });
+      
+      setSessionState(newSession);
       console.log('✅ Sesión guardada en AsyncStorage y sincronizada con Supabase');
     } else {
-      AsyncStorage.removeItem('auth_session');
-      // Limpiar sesión en Supabase
-      supabase.auth.signOut();
+      // Limpiar sesión
+      AsyncStorage.removeItem('auth_session').catch(err => {
+        console.error('❌ Error removiendo sesión de AsyncStorage:', err);
+      });
+      
+      supabase.auth.signOut().catch(err => {
+        console.error('❌ Error en signOut de Supabase:', err);
+      });
+      
+      setSessionState(null);
       console.log('✅ Sesión eliminada de AsyncStorage y Supabase');
     }
   };

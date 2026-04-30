@@ -11,14 +11,20 @@ export interface ExcursionDetail {
   type: string;
   date: string;
   time: string;
+  fechaInicio: Date;
   meetingPoint: string;
   meetingLat: number;
   meetingLng: number;
   organizerName: string;
+  organizerId: string;
   capacity: number;
   availableSpots: number;
+  acceptedCount: number;
+  pendingCount: number;
   isOrganizer: boolean;
   isJoined: boolean;
+  myParticipationStatus: 'pending' | 'accepted' | null;
+  attendanceConfirmed: boolean;
   imageUrl?: string;
   gpxPath: string;
   distanciaTotal: number;
@@ -34,8 +40,24 @@ export const excursionDetailService = {
       console.log('📖 getExcursionDetail START:', excursionId);
       const numericId = parseInt(excursionId, 10);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? ANON_KEY;
+      // Obtener token con reintento si es necesario
+      let token: string | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          break;
+        }
+        // Si no hay sesión en el primer intento, esperar un poco y reintentar
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        }
+      }
+      
+      // Si aún no hay token, usar ANON_KEY
+      token = token || ANON_KEY;
+      
+      console.log('🔑 Token type:', token === ANON_KEY ? 'ANON' : 'AUTH');
 
       const response = await fetch(`${API_URL}/functions/v1/get-excursion-detail`, {
         method: 'POST',
@@ -53,6 +75,13 @@ export const excursionDetailService = {
 
       const excursionData = await response.json();
 
+      console.log('📦 Raw excursionData from backend:', {
+        isOrganizer: excursionData.isOrganizer,
+        creadoPor: excursionData.creadoPor,
+        userId: excursionData.userId,
+        id: excursionData.id,
+      });
+
       const fecha = new Date(excursionData.fechaInicio);
       const dateStr = fecha.toISOString().split('T')[0];
       const timeStr = fecha.toTimeString().split(' ')[0].substring(0, 5);
@@ -64,14 +93,20 @@ export const excursionDetailService = {
         type: excursionData.tipoExcursion,
         date: dateStr,
         time: timeStr,
+        fechaInicio: fecha,
         meetingPoint: excursionData.puntoEncuentro,
         meetingLat: excursionData.meetingLat,
         meetingLng: excursionData.meetingLng,
         organizerName: excursionData.organizador_nombre || 'Desconocido',
+        organizerId: excursionData.creadoPor ?? '',
         capacity: excursionData.capacidad,
-        availableSpots: excursionData.availableSpots,
+        availableSpots: excursionData.availableSpots ?? 0,
+        acceptedCount: excursionData.acceptedCount ?? 0,
+        pendingCount: excursionData.pendingCount ?? 0,
         isOrganizer: !!excursionData.isOrganizer,
         isJoined: !!excursionData.isJoined,
+        myParticipationStatus: excursionData.myParticipationStatus ?? null,
+        attendanceConfirmed: !!excursionData.attendanceConfirmed,
         imageUrl: excursionData.imagenURL,
         gpxPath: excursionData.GPXPath,
         distanciaTotal: excursionData.distancia_total || 0,
@@ -80,6 +115,12 @@ export const excursionDetailService = {
         desnivelPositivo: excursionData.desnivel_positivo || 0,
         status: excursionData.status,
       };
+
+      console.log('✅ Excursion detail processed:', {
+        id: result.id,
+        isOrganizer: result.isOrganizer,
+        title: result.title,
+      });
 
       console.log('✅ getExcursionDetail COMPLETE');
       return result;

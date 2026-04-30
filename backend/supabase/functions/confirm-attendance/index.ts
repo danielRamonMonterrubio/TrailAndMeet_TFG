@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const ONE_HOUR_MS = 60 * 60 * 1000
+const TWO_HOURS_MS = 2 * ONE_HOUR_MS
+
 export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -56,7 +59,7 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar ventana: hasta 1h antes del inicio
+    // Cargar excursión para validar ventana temporal
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
       .select('id, fechaInicio, status')
@@ -72,41 +75,69 @@ export async function handler(req: Request): Promise<Response> {
 
     if (excursion.status !== 'published') {
       return new Response(
-        JSON.stringify({ error: 'No puedes abandonar una excursión finalizada o cancelada' }),
+        JSON.stringify({ error: 'La excursión no admite confirmaciones' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
-    const ONE_HOUR_MS = 60 * 60 * 1000
     const startMs = new Date(excursion.fechaInicio).getTime()
-    if (Date.now() > startMs - ONE_HOUR_MS) {
+    const nowMs = Date.now()
+
+    if (nowMs < startMs - ONE_HOUR_MS) {
       return new Response(
-        JSON.stringify({ error: 'Ya no puedes abandonar la excursión (menos de 1h para el inicio)' }),
+        JSON.stringify({ error: 'Aún no puedes confirmar asistencia (la ventana abre 1h antes del inicio)' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
-    // Solo abandonar si estaba aceptado. Para cancelar pending usar cancel-join-request.
-    const { data: deleted, error: deleteError } = await supabase
+    if (nowMs > startMs + TWO_HOURS_MS) {
+      return new Response(
+        JSON.stringify({ error: 'La ventana para confirmar asistencia ha expirado' }),
+        { status: 409, headers: corsHeaders }
+      )
+    }
+
+    // Validar que el usuario está aceptado
+    const { data: participacion, error: partError } = await supabase
       .from('participacion')
-      .delete()
+      .select('excursionId, usuarioId, status, attendance_confirmed_at')
       .eq('excursionId', excursionId)
       .eq('usuarioId', user.id)
-      .eq('status', 'accepted')
-      .select('excursionId')
+      .maybeSingle()
 
-    if (deleteError) {
-      console.error('Error borrando participación:', deleteError)
+    if (partError) {
+      console.error('Error consultando participación:', partError)
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
+        JSON.stringify({ error: partError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    if (!deleted || deleted.length === 0) {
+    if (!participacion || participacion.status !== 'accepted') {
       return new Response(
         JSON.stringify({ error: 'No estás aceptado en esta excursión' }),
-        { status: 404, headers: corsHeaders }
+        { status: 403, headers: corsHeaders }
+      )
+    }
+
+    if (participacion.attendance_confirmed_at) {
+      return new Response(
+        JSON.stringify({ error: 'Ya has confirmado tu asistencia' }),
+        { status: 409, headers: corsHeaders }
+      )
+    }
+
+    const { error: updateError } = await supabase
+      .from('participacion')
+      .update({ attendance_confirmed_at: new Date().toISOString() })
+      .eq('excursionId', excursionId)
+      .eq('usuarioId', user.id)
+
+    if (updateError) {
+      console.error('Error confirmando asistencia:', updateError)
+      return new Response(
+        JSON.stringify({ error: updateError.message }),
+        { status: 500, headers: corsHeaders }
       )
     }
 
@@ -115,11 +146,9 @@ export async function handler(req: Request): Promise<Response> {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error en leave-excursion:', error)
+    console.error('Error en confirm-attendance:', error)
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Error no identificado',
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Error no identificado' }),
       { status: 500, headers: corsHeaders }
     )
   }

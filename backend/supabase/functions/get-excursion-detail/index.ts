@@ -56,20 +56,48 @@ export async function handler(req: Request): Promise<Response> {
 
     const detail = rpcData[0] as any
 
+    // Obtener creadoPor de la tabla excursion (puede no estar en el RPC)
+    const { data: excursionRow, error: excError } = await supabase
+      .from('excursion')
+      .select('id, creadoPor')
+      .eq('id', numericId)
+      .single()
+
+    if (excError) {
+      console.warn('⚠️ Error obteniendo creadoPor:', excError.message)
+    }
+
+    const creadoPor = excursionRow?.creadoPor ?? detail.creadoPor
+    console.log('📌 creadoPor from DB:', creadoPor)
+
     // Resolver usuario actual (opcional)
     let userId: string | null = null
     const authHeader = req.headers.get('Authorization')
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '')
-      const { data: { user } } = await supabase.auth.getUser(token)
-      if (user) userId = user.id
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+      if (userError) {
+        console.warn('⚠️ Error obteniendo usuario:', userError.message)
+      }
+      if (user) {
+        userId = user.id
+        console.log('✅ Usuario autenticado:', userId)
+      } else {
+        console.warn('⚠️ No se pudo obtener usuario del token')
+      }
+    } else {
+      console.warn('⚠️ No hay Authorization header')
     }
 
-    // Contar participantes y comprobar si el usuario actual está unido
-    const { count: participantesCount, error: countError } = await supabase
+    const isOrganizerValue = userId && creadoPor === userId
+    console.log('🔍 isOrganizer check:', { userId, createdBy: creadoPor, isOrganizer: isOrganizerValue })
+
+    // Contar participantes aceptados (los pending no ocupan plaza visible)
+    const { count: acceptedCount, error: countError } = await supabase
       .from('participacion')
       .select('*', { count: 'exact', head: true })
       .eq('excursionId', numericId)
+      .eq('status', 'accepted')
 
     if (countError) {
       console.error('Error contando participantes:', countError)
@@ -79,23 +107,40 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    let isJoined = false
+    // Contar solicitudes pendientes (solo útil para el organizador)
+    const { count: pendingCount } = await supabase
+      .from('participacion')
+      .select('*', { count: 'exact', head: true })
+      .eq('excursionId', numericId)
+      .eq('status', 'pending')
+
+    let myParticipationStatus: 'pending' | 'accepted' | null = null
+    let attendanceConfirmed = false
+
     if (userId) {
       const { data: existing } = await supabase
         .from('participacion')
-        .select('excursionId')
+        .select('status, attendance_confirmed_at')
         .eq('excursionId', numericId)
         .eq('usuarioId', userId)
         .maybeSingle()
 
-      isJoined = !!existing
+      if (existing) {
+        myParticipationStatus = existing.status as 'pending' | 'accepted'
+        attendanceConfirmed = !!existing.attendance_confirmed_at
+      }
     }
 
     const enriched = {
       ...detail,
-      availableSpots: Math.max(0, (detail.capacidad ?? 0) - (participantesCount ?? 0)),
-      isOrganizer: userId ? detail.creadoPor === userId : false,
-      isJoined,
+      creadoPor,
+      acceptedCount: acceptedCount ?? 0,
+      pendingCount: pendingCount ?? 0,
+      availableSpots: Math.max(0, (detail.capacidad ?? 0) - (acceptedCount ?? 0)),
+      isOrganizer: isOrganizerValue,
+      myParticipationStatus,
+      attendanceConfirmed,
+      isJoined: myParticipationStatus === 'accepted',
     }
 
     return new Response(

@@ -12,7 +12,10 @@ import LoginScreen from "../screens/LoginScreen";
 import RegisterStep1Screen from "../screens/RegisterStep1Screen";
 import RegisterStep2Screen from "../screens/RegisterStep2Screen";
 import CreateExcursionScreen from "../screens/CreateExcursionScreen";
-import ExcursionDetailScreen from "../screens/ExcursionDetailScreen"; 
+import ExcursionDetailScreen from "../screens/ExcursionDetailScreen";
+import PendingRequestsScreen from "../screens/PendingRequestsScreen";
+import EditExcursionScreen from "../screens/EditExcursionScreen";
+import ExcursionParticipantsScreen from "../screens/ExcursionParticipantsScreen";
 
 import { AuthContext } from "../context/AuthContext";
 import { colors } from "../theme/colors";
@@ -29,6 +32,9 @@ export type RootStackParamList = {
   MyExcursions: undefined;
   CreateExcursion: undefined;
   ExcursionDetail: { id: string };
+  PendingRequests: { excursionId: string; excursionTitle: string };
+  EditExcursion: { excursionId: string };
+  ExcursionParticipants: { excursionId: string; excursionTitle: string; organizerId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -50,38 +56,24 @@ const AuthStack = () => (
 
 // Stack para ExcursionList con su navegación interna
 const ExcursionListStack = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerShown: false,
-    }}
-  >
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ExcursionList" component={ExcursionListScreen} />
     <Stack.Screen name="CreateExcursion" component={CreateExcursionScreen} />
-    <Stack.Screen
-      name="ExcursionDetail"
-      component={ExcursionDetailScreen}
-      options={{
-        tabBarStyle: { display: 'none' },
-      }}
-    />
+    <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
+    <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
+    <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
+    <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
   </Stack.Navigator>
 );
 
 // Stack para MyExcursions con su navegación interna
 const MyExcursionsStack = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerShown: false,
-    }}
-  >
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MyExcursions" component={MyExcursionsScreen} />
-    <Stack.Screen
-      name="ExcursionDetail"
-      component={ExcursionDetailScreen}
-      options={{
-        tabBarStyle: { display: 'none' },
-      }}
-    />
+    <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
+    <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
+    <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
+    <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
   </Stack.Navigator>
 );
 

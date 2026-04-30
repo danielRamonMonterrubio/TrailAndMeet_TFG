@@ -133,6 +133,27 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
+    // Insertar al organizador como participante aceptado
+    const excursionId = data
+    const now = new Date().toISOString()
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { error: participacionError } = await supabaseService
+      .from('participacion')
+      .insert({
+        excursionId,
+        usuarioId: user.id,
+        status: 'accepted',
+        fechaSolicitud: now,
+        fechaUnion: now,
+      })
+    if (participacionError) {
+      console.error('Error insertando organizador en participacion:', participacionError)
+    }
+
     // Retornar éxito con información de la ruta
     return new Response(
       JSON.stringify({

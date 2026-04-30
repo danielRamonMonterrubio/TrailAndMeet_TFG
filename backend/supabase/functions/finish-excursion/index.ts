@@ -56,10 +56,9 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar ventana: hasta 1h antes del inicio
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, fechaInicio, status')
+      .select('id, creadoPor, fechaInicio, status')
       .eq('id', excursionId)
       .single()
 
@@ -70,43 +69,54 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
+    if (excursion.creadoPor !== user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Solo el organizador puede finalizar la excursión' }),
+        { status: 403, headers: corsHeaders }
+      )
+    }
+
     if (excursion.status !== 'published') {
       return new Response(
-        JSON.stringify({ error: 'No puedes abandonar una excursión finalizada o cancelada' }),
+        JSON.stringify({ error: 'La excursión ya está finalizada o cancelada' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
-    const ONE_HOUR_MS = 60 * 60 * 1000
     const startMs = new Date(excursion.fechaInicio).getTime()
-    if (Date.now() > startMs - ONE_HOUR_MS) {
+    if (Date.now() < startMs) {
       return new Response(
-        JSON.stringify({ error: 'Ya no puedes abandonar la excursión (menos de 1h para el inicio)' }),
+        JSON.stringify({ error: 'No puedes finalizar la excursión antes de la hora de inicio' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
-    // Solo abandonar si estaba aceptado. Para cancelar pending usar cancel-join-request.
-    const { data: deleted, error: deleteError } = await supabase
+    // Borrar pendientes
+    const { error: deletePendingError } = await supabase
       .from('participacion')
       .delete()
       .eq('excursionId', excursionId)
-      .eq('usuarioId', user.id)
-      .eq('status', 'accepted')
-      .select('excursionId')
+      .eq('status', 'pending')
 
-    if (deleteError) {
-      console.error('Error borrando participación:', deleteError)
+    if (deletePendingError) {
+      console.error('Error borrando pendientes:', deletePendingError)
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
+        JSON.stringify({ error: deletePendingError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    if (!deleted || deleted.length === 0) {
+    // Marcar finished
+    const { error: updateError } = await supabase
+      .from('excursion')
+      .update({ status: 'finished' })
+      .eq('id', excursionId)
+
+    if (updateError) {
+      console.error('Error actualizando estado:', updateError)
       return new Response(
-        JSON.stringify({ error: 'No estás aceptado en esta excursión' }),
-        { status: 404, headers: corsHeaders }
+        JSON.stringify({ error: updateError.message }),
+        { status: 500, headers: corsHeaders }
       )
     }
 
@@ -115,11 +125,9 @@ export async function handler(req: Request): Promise<Response> {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error en leave-excursion:', error)
+    console.error('Error en finish-excursion:', error)
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Error no identificado',
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Error no identificado' }),
       { status: 500, headers: corsHeaders }
     )
   }

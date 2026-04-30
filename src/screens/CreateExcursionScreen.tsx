@@ -120,7 +120,7 @@ const CreateExcursionScreen = () => {
       }
 
       // Paso 2: Llamar Edge Function que parsea GPX y crea la excursión
-      const response = await excursionCreationService.createExcursionWithGpx({
+      await excursionCreationService.createExcursionWithGpx({
         gpxBase64: file.base64,
         p_titulo: title,
         p_dificultad: difficulty,
@@ -135,41 +135,15 @@ const CreateExcursionScreen = () => {
 
       setIsSubmitting(false);
 
-      if (response.success) {
-        const routeInfo = response.routeInfo;
-        
-        // Limpiar formulario
-        setTitle("");
-        setFile(null);
-        setDifficulty("");
-        setExcursionType("Senderismo");
-        setDate("");
-        setTime("");
-        setPlace("");
-        setLat("");
-        setLng("");
-        setSlots("");
-        setMaterial("");
-        setDescription("");
+      // Si el service no lanzó error, la creación fue exitosa
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'ExcursionList' }],
+      });
 
-        // Navegar y reemplazar la pantalla (sin poder volver atrás)
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'ExcursionList' }],
-        });
-
-        // Mostrar confirmación después
-        setTimeout(() => {
-          Alert.alert(
-            "¡Excursión creada!",
-            `Punto de encuentro detectado automáticamente:\nLat: ${routeInfo?.startPoint.lat.toFixed(
-              6
-            )}\nLon: ${routeInfo?.startPoint.lng.toFixed(6)}\n\nDistancia: ${
-              routeInfo?.totalDistance
-            }km\nElevación máxima: ${routeInfo?.maxElevation}m`
-          );
-        }, 300);
-      }
+      setTimeout(() => {
+        Alert.alert('¡Excursión creada!', 'La excursión se ha publicado correctamente.');
+      }, 300);
     } catch (error) {
       setIsSubmitting(false);
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";

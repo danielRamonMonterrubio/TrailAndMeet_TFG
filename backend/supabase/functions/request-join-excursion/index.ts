@@ -56,10 +56,10 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar ventana: hasta 1h antes del inicio
+    // Cargar excursión
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, fechaInicio, status')
+      .select('id, creadoPor, capacidad, status')
       .eq('id', excursionId)
       .single()
 
@@ -72,54 +72,71 @@ export async function handler(req: Request): Promise<Response> {
 
     if (excursion.status !== 'published') {
       return new Response(
-        JSON.stringify({ error: 'No puedes abandonar una excursión finalizada o cancelada' }),
+        JSON.stringify({ error: 'La excursión ya no acepta nuevas solicitudes' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
-    const ONE_HOUR_MS = 60 * 60 * 1000
-    const startMs = new Date(excursion.fechaInicio).getTime()
-    if (Date.now() > startMs - ONE_HOUR_MS) {
+    if (excursion.creadoPor === user.id) {
       return new Response(
-        JSON.stringify({ error: 'Ya no puedes abandonar la excursión (menos de 1h para el inicio)' }),
-        { status: 409, headers: corsHeaders }
+        JSON.stringify({ error: 'No puedes solicitar unirte a tu propia excursión' }),
+        { status: 403, headers: corsHeaders }
       )
     }
 
-    // Solo abandonar si estaba aceptado. Para cancelar pending usar cancel-join-request.
-    const { data: deleted, error: deleteError } = await supabase
+    // Comprobar plazas (solo cuentan los aceptados)
+    const { count: acceptedCount, error: countError } = await supabase
       .from('participacion')
-      .delete()
+      .select('*', { count: 'exact', head: true })
       .eq('excursionId', excursionId)
-      .eq('usuarioId', user.id)
       .eq('status', 'accepted')
-      .select('excursionId')
 
-    if (deleteError) {
-      console.error('Error borrando participación:', deleteError)
+    if (countError) {
+      console.error('Error contando participantes:', countError)
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
+        JSON.stringify({ error: 'Error comprobando plazas' }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    if (!deleted || deleted.length === 0) {
+    if ((acceptedCount ?? 0) >= excursion.capacidad) {
       return new Response(
-        JSON.stringify({ error: 'No estás aceptado en esta excursión' }),
-        { status: 404, headers: corsHeaders }
+        JSON.stringify({ error: 'No quedan plazas disponibles' }),
+        { status: 409, headers: corsHeaders }
+      )
+    }
+
+    // Insertar solicitud pending (la PK compuesta evita duplicados)
+    const { error: insertError } = await supabase
+      .from('participacion')
+      .insert({
+        excursionId: excursion.id,
+        usuarioId: user.id,
+        status: 'pending',
+      })
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return new Response(
+          JSON.stringify({ error: 'Ya tienes una solicitud o estás unido a esta excursión' }),
+          { status: 409, headers: corsHeaders }
+        )
+      }
+      console.error('Error insertando solicitud:', insertError)
+      return new Response(
+        JSON.stringify({ error: insertError.message }),
+        { status: 500, headers: corsHeaders }
       )
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, status: 'pending' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error en leave-excursion:', error)
+    console.error('Error en request-join-excursion:', error)
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Error no identificado',
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Error no identificado' }),
       { status: 500, headers: corsHeaders }
     )
   }

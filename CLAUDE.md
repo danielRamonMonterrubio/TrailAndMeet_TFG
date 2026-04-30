@@ -48,7 +48,9 @@ android/
     debug.keystore         -> Keystore local del proyecto (NO ~/.android/debug.keystore)
     src/main/AndroidManifest.xml
 .env                       -> SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_MAPS_API_KEY (no commiteado)
+database.types.ts          -> Ahi puedes ver todas las tablas de supabase
 ```
+
 
 ## Convenciones de estilo
 
@@ -57,6 +59,7 @@ android/
 - Para extender un estilo compartido: array `[shared.card, { marginBottom: 20 }]`.
 - **No usar `alignItems: "center"` en contenedores que tengan tarjetas/inputs**: hace que las cards se encojan al ancho mínimo en lugar de ocupar todo el ancho. Para centrar elementos individuales usa `alignSelf: "center"` (icono) o `textAlign: "center"` (textos).
 - Idioma de UI: español. Comentarios y logs: español.
+- Cuando escribas sql, escríbelo en postgres puro (Con comillas para mayusculas) para ejecutar desde supabase
 
 ## Convenciones de arquitectura
 
@@ -143,8 +146,3 @@ npm run lint
 - `ExcursionDetailScreen` tiene `console.log` con emoji y text en pantalla (`gpxStatus`, `mapReady`)
 - Quitar cuando mapa esté validado en múltiples dispositivos
 
-### 📋 Próximas sesiones:
-- Testear en varios dispositivos (Android/iOS con Play Services actualizado)
-- Remover debug text de ExcursionDetailScreen
-- Validar que join/leave funciona en todos los casos edge
-- Mejorar UX durante carga de mapa (progress indicator, maybe?)
