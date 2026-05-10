@@ -7,6 +7,7 @@ import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-
 
 import ExcursionListScreen from "../screens/ExcursionListScreen";
 import MyExcursionsScreen from "../screens/MyExcursionsScreen";
+import MyChatsScreen from "../screens/MyChatsScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterStep1Screen from "../screens/RegisterStep1Screen";
@@ -16,8 +17,10 @@ import ExcursionDetailScreen from "../screens/ExcursionDetailScreen";
 import PendingRequestsScreen from "../screens/PendingRequestsScreen";
 import EditExcursionScreen from "../screens/EditExcursionScreen";
 import ExcursionParticipantsScreen from "../screens/ExcursionParticipantsScreen";
+import ChatScreen from "../screens/ChatScreen";
 
 import { AuthContext } from "../context/AuthContext";
+import { ChatUnreadContext } from "../context/ChatUnreadContext";
 import { colors } from "../theme/colors";
 
 export type RootStackParamList = {
@@ -30,6 +33,8 @@ export type RootStackParamList = {
   };
   ExcursionList: undefined;
   MyExcursions: undefined;
+  MyChats: undefined;
+  Chat: { excursionId: string; excursionTitle: string; excursionStatus: string };
   CreateExcursion: undefined;
   ExcursionDetail: { id: string };
   PendingRequests: { excursionId: string; excursionTitle: string };
@@ -40,13 +45,8 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<RootStackParamList>();
 
-// Stack de autenticación
 const AuthStack = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerShown: false,
-    }}
-  >
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Welcome" component={WelcomeScreen} />
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="RegisterStep1" component={RegisterStep1Screen} />
@@ -54,7 +54,6 @@ const AuthStack = () => (
   </Stack.Navigator>
 );
 
-// Stack para ExcursionList con su navegación interna
 const ExcursionListStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ExcursionList" component={ExcursionListScreen} />
@@ -63,10 +62,10 @@ const ExcursionListStack = () => (
     <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
   </Stack.Navigator>
 );
 
-// Stack para MyExcursions con su navegación interna
 const MyExcursionsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MyExcursions" component={MyExcursionsScreen} />
@@ -74,77 +73,82 @@ const MyExcursionsStack = () => (
     <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
   </Stack.Navigator>
 );
 
-// Bottom Tab Navigator
-const AppStack = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarActiveTintColor: colors.primaryGradientStart,
-      tabBarInactiveTintColor: colors.textMuted,
-      tabBarStyle: {
-        backgroundColor: colors.white,
-        borderTopWidth: 1,
-        borderTopColor: colors.grayLight,
-      },
-      tabBarIcon: ({ color, size }) => {
-        let iconName: React.ComponentProps<typeof MaterialDesignIcons>["name"] = "help";
-
-        if (route.name === "ExcursionList") {
-          iconName = "map";
-        } else if (route.name === "MyExcursions") {
-          iconName = "briefcase";
-        }
-
-        return <MaterialDesignIcons name={iconName} size={size} color={color} />;
-      },
-      tabBarLabel: route.name === "ExcursionList" ? "Explorar" : "Mis Excursiones",
-    })}
-  >
-    <Tab.Screen
-      name="ExcursionList"
-      component={ExcursionListStack}
-      options={{
-        title: "Explorar",
-      }}
-      listeners={({ navigation, route }) => ({
-        tabPress: (e) => {
-          // Navegrar al screen inicial del stack usando nested navigation
-          // Esto resetea el stack a la pantalla raíz
-          navigation.navigate('ExcursionList' as never, {
-            screen: 'ExcursionList',
-          } as never);
-        },
-      })}
-    />
-    <Tab.Screen
-      name="MyExcursions"
-      component={MyExcursionsStack}
-      options={{
-        title: "Mis Excursiones",
-      }}
-      listeners={({ navigation, route }) => ({
-        tabPress: (e) => {
-          // Navegrar al screen inicial del stack usando nested navigation
-          // Esto resetea el stack a la pantalla raíz
-          navigation.navigate('MyExcursions' as never, {
-            screen: 'MyExcursions',
-          } as never);
-        },
-      })}
-    />
-  </Tab.Navigator>
+const MyChatsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="MyChats" component={MyChatsScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
+  </Stack.Navigator>
 );
+
+const AppStack = () => {
+  const { totalUnread } = useContext(ChatUnreadContext);
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.primaryGradientStart,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopWidth: 1,
+          borderTopColor: colors.grayLight,
+        },
+        tabBarIcon: ({ color, size }) => {
+          let iconName: React.ComponentProps<typeof MaterialDesignIcons>["name"] = "help";
+          if (route.name === "ExcursionList") iconName = "map";
+          else if (route.name === "MyExcursions") iconName = "briefcase";
+          else if (route.name === "MyChats") iconName = "chat";
+          return <MaterialDesignIcons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen
+        name="ExcursionList"
+        component={ExcursionListStack}
+        options={{ title: "Explorar" }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('ExcursionList' as never, { screen: 'ExcursionList' } as never);
+          },
+        })}
+      />
+      <Tab.Screen
+        name="MyExcursions"
+        component={MyExcursionsStack}
+        options={{ title: "Mis Excursiones" }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('MyExcursions' as never, { screen: 'MyExcursions' } as never);
+          },
+        })}
+      />
+      <Tab.Screen
+        name="MyChats"
+        component={MyChatsStack}
+        options={{
+          title: "Chats",
+          tabBarBadge: totalUnread > 0 ? totalUnread : undefined,
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('MyChats' as never, { screen: 'MyChats' } as never);
+          },
+        })}
+      />
+    </Tab.Navigator>
+  );
+};
 
 const AppNavigator = () => {
   const { session, loading } = useContext(AuthContext);
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.backgroundSoft }} />
-    );
+    return <View style={{ flex: 1, backgroundColor: colors.backgroundSoft }} />;
   }
 
   return (

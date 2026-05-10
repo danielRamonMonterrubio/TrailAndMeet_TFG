@@ -207,9 +207,10 @@ PARSING (Interno)
   1. Descarga GPX de Storage (Storage.download)
   2. Parsea XML para extraer trackpoints
   3. Calcula estadísticas (distancia, elevación, etc.)
-  4. Inserta excursión en tabla `excursion`
-  5. Devuelve routeInfo al frontend
-- **BD**: Inserta `excursion` + quizá `ruta` (si tabla existe)
+  4. Inserta excursión en tabla `excursion` (via RPC `crear_excursion`)
+  5. **Inserta al organizador en `participacion`** con `status='accepted'` (ocupa una plaza)
+  6. Devuelve routeInfo al frontend
+- **BD**: Inserta `excursion` + INSERT en `participacion` para el organizador
 
 ### `update-excursion` (POST)
 **Editar excursión (solo organizador)**
@@ -239,10 +240,13 @@ PARSING (Interno)
 ### `delete-excursion` (POST)
 **Eliminar excursión (solo organizador)**
 - **Input**: `{ excursionId: number }`
-- **Output**: `{ success: boolean }`
+- **Output**: `{ success: boolean, deletedCount: number }`
 - **Token**: ACCESS_TOKEN
-- **Validaciones**: Solo organizador, status 'published'
-- **BD**: DELETE de `excursion` + cascada limpia participantes
+- **Patrón**: Dual-client (authClient valida, supabase SERVICE_ROLE_KEY elimina)
+- **Validaciones**: Solo organizador
+- **BD**: DELETE de `excursion` + ON DELETE CASCADE limpia `participacion`
+- **Storage**: Borra el GPX del bucket `gpx-files`. Soporta tanto path relativo como URL pública completa almacenada en `GPXPath`.
+- **Nota**: Requiere que la FK `participacion.excursionId` tenga `ON DELETE CASCADE` (ver SQL en CLAUDE.md principal)
 
 ### `get-filtered-excursions` (POST)
 **Listar excursiones públicas con filtros**
@@ -281,12 +285,16 @@ PARSING (Interno)
   2. SELECT directo de tabla `excursion` para obtener `creadoPor`
   3. Si autenticado: obtiene userId del token
   4. **Calcula `isOrganizer = (userId === creadoPor)`** ← CRÍTICO para mostrar botones
-  5. Cuenta participantes aceptados
-  6. Si usuario autenticado: obtiene su estado (`pending`/`accepted`/null)
-  7. Devuelve enriquecido
-- **BD**: RPC + SELECT excursion + COUNT participación + SELECT estado usuario
+  5. Cuenta participantes aceptados (`acceptedCount`)
+  6. Cuenta solicitudes pendientes (`pendingCount`)
+  7. Si usuario autenticado: obtiene su estado (`pending`/`accepted`/null)
+  8. Devuelve enriquecido
+- **BD**: RPC + SELECT excursion + 2x COUNT participación + SELECT estado usuario
 - **Campos clave**:
+  - `creadoPor`: UUID del organizador (→ `organizerId` en frontend, para badge "Dueño")
   - `isOrganizer`: boolean (muestra OrganizerActions vs ParticipantActions)
+  - `acceptedCount`: número de participantes aceptados
+  - `pendingCount`: número de solicitudes pendientes (visible en botón "Gestionar solicitudes")
   - `myParticipationStatus`: 'pending' | 'accepted' | null
   - `attendanceConfirmed`: boolean (asistencia confirmada)
 
@@ -406,15 +414,15 @@ PARSING (Interno)
 6. Usuario: Puede ver botón "Confirmar Asistencia" en ventana temporal
 
 ### Flujo: Crear Excursión
-1. Frontend: Upload GPX a Storage → obtiene gpxPath
+1. Frontend: Upload GPX a Storage → obtiene gpxPath (path relativo, ej: `userId/timestamp_file.gpx`)
 2. Frontend: `POST /create-excursion-with-gpx` con base64 + datos
 3. Backend:
-   - Descarga GPX de Storage
    - Parsea XML → extrae trackpoints
    - Calcula distancia, elevación, etc.
-   - INSERT `excursion`
-   - Retorna routeInfo (startPoint, totalDistance, etc.)
-4. Frontend: Muestra toast con datos procesados
+   - INSERT `excursion` via RPC `crear_excursion`
+   - **INSERT organizador en `participacion`** con `status='accepted'`
+   - Retorna `{ success: true, routeInfo: {...} }`
+4. Frontend: `navigation.reset` → ExcursionList + Alert de confirmación
 
 ---
 
@@ -483,101 +491,49 @@ participacion {
 
 ---
 
-## 🚀 Estado Actual (2026-04-29)
+## 🚀 Estado Actual (2026-04-30)
 
 ✅ **Implementado y testeado**:
 - Autenticación (login, registro, logout)
-- CRUD excursiones básico
-- Participación (join/leave)
+- CRUD excursiones (crear, editar, eliminar, finalizar)
+- Participación (solicitar, cancelar, aceptar, rechazar, abandonar, confirmar asistencia)
 - Solicitudes (pedir/responder)
-- Detail con isOrganizer correcto
+- Detail con isOrganizer, pendingCount, acceptedCount, organizerId (creadoPor)
+- Organizador insertado automáticamente en participacion al crear excursión
 
-⚠️ **Recientes fixes**:
-- Token sync en AuthContext mejorado (retry loop)
-- Backend: Obtiene `creadoPor` directo de tabla (RPC no lo devolvía)
-- Frontend: Logs para debuguear isOrganizer
-- Excursiones creadas por usuario ahora muestran botones de editar/eliminar
-- **UPDATE-excursion: Dual-client pattern implementado** (authClient para validar, supabase SERVICE_ROLE_KEY para actualizar)
+⚠️ **Pendiente de aplicar en BD**:
+- `ALTER TABLE "participacion" DROP CONSTRAINT "participacion_excursionId_fkey", ADD CONSTRAINT ... ON DELETE CASCADE` (ver CLAUDE.md principal)
 
 ---
 
 ## 🔐 Security Audit & Client Pattern Status
 
-### **✅ Funciones Correctas (Pattern 1: SERVICE_ROLE_KEY simple)**
+### **✅ Funciones con Pattern 1: SERVICE_ROLE_KEY simple (sin auth header)**
 ```
-auth-check-email
-auth-check-username
-auth-login
-auth-logout
-get-filtered-excursions
-get-excursion-detail
-get-excursion-participants
-download-gpx
-create-excursion-with-gpx
-parse-and-create-excursion
-```
-Estas no necesitan dual-client porque:
-- Son públicas (sin validación de usuario específico)
-- O la autorización ocurre vía Supabase Auth directamente
-- No hacen UPDATE/DELETE que requieran verificación de propiedad
-
-### **✅ Funciones Corregidas (Pattern 2: Dual-Client)**
-```
-update-excursion  ← CORREGIDA 29/04/2026
-  - authClient valida usuario
-  - supabase (SERVICE_ROLE_KEY) realiza UPDATE
-  - Permite bypass seguro de RLS tras validación explícita
+auth-check-email, auth-check-username, auth-login, auth-logout
+get-filtered-excursions, get-excursion-participants, download-gpx
+parse-and-create-excursion (LEGACY)
 ```
 
-### **⚠️ REFACTOR QUEUE (Necesitan Dual-Client como update-excursion)**
-
-**Priority 1 - HIGH RISK (DELETE/críticas):**
+### **✅ Funciones con Pattern 2: Dual-Client (CORREGIDAS)**
 ```
-1. delete-excursion
-   - Riesgo: Borrar cualquier excursión si auth check falla
-   - Fix: Usar authClient para validar token → supabase para DELETE
-
-2. finish-excursion
-   - Riesgo: Cambiar status cualquier excursión
-   - Fix: Usar authClient para validar token → supabase para UPDATE status
-
-3. respond-join-request
-   - Riesgo: Aceptar/rechazar cualquier solicitud
-   - Fix: Usar authClient para validar token → supabase para UPDATE participacion
+update-excursion       ← corregida 29/04/2026
+delete-excursion       ← corregida 30/04/2026
+get-pending-requests   ← ya usaba dual-client correctamente
+get-excursion-detail   ← usa SERVICE_ROLE_KEY para auth.getUser (válido)
+create-excursion-with-gpx ← usa SERVICE_ROLE_KEY con auth header (válido para getUser)
 ```
 
-**Priority 2 - MEDIUM RISK (Filtrado deficiente):**
+### **⚠️ REFACTOR PENDIENTE (Necesitan Dual-Client)**
 ```
-4. get-pending-requests
-   - Riesgo: Ver solicitudes de otras excursiones
-   - Fix: Usar authClient → supabase (añadir WHERE creadoPor = userId explícitamente)
-
-5. get-my-excursions
-   - Riesgo: Ver excursiones ajenas (si filtrado SQL falla)
-   - Fix: Usar authClient → supabase con verificación userId en WHERE
-
-6. request-join-excursion
-   - Riesgo: Unirse como otro usuario si token validation falla
-   - Fix: Usar authClient → supabase
-```
-
-**Priority 3 - MEDIUM RISK (Cambios de estado):**
-```
-7. cancel-join-request
-   - Riesgo: Cancelar solicitud ajena
-   - Fix: Usar authClient → supabase
-
-8. leave-excursion
-   - Riesgo: Dejar excursión como otro usuario
-   - Fix: Usar authClient → supabase
-
-9. confirm-attendance
-   - Riesgo: Confirmar asistencia por otro
-   - Fix: Usar authClient → supabase
-
-10. auth-complete-registration
-    - Riesgo: Completar registro para otro usuario
-    - Fix: Usar authClient → supabase
+finish-excursion        - HIGH: puede cambiar status de excursión ajena
+respond-join-request    - HIGH: puede aceptar/rechazar solicitudes ajenas
+get-my-excursions       - MEDIUM: filtrado por userId debe ser verificado
+request-join-excursion  - MEDIUM: unirse como otro usuario
+cancel-join-request     - MEDIUM: cancelar solicitud ajena
+leave-excursion         - MEDIUM: abandonar como otro usuario
+confirm-attendance      - MEDIUM: confirmar asistencia por otro
+auth-complete-registration - MEDIUM: completar registro para otro usuario
 ```
 
 ### **Refactoring Template (Copia/Pega para arreglar)**

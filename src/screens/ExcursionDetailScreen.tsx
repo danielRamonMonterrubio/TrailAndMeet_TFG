@@ -402,6 +402,7 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
                 onDelete={handleDelete}
                 onPendingRequests={() => navigation.navigate('PendingRequests', { excursionId: excursion.id, excursionTitle: excursion.title })}
                 onParticipants={() => navigation.navigate('ExcursionParticipants', { excursionId: excursion.id, excursionTitle: excursion.title, organizerId: excursion.organizerId })}
+                onChat={() => navigation.navigate('Chat', { excursionId: excursion.id, excursionTitle: excursion.title, excursionStatus: excursion.status })}
               />
             ) : (
               <ParticipantActions
@@ -414,6 +415,7 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
                 onLeave={handleLeave}
                 onConfirmAttendance={handleConfirmAttendance}
                 onParticipants={() => navigation.navigate('ExcursionParticipants', { excursionId: excursion.id, excursionTitle: excursion.title, organizerId: excursion.organizerId })}
+                onChat={() => navigation.navigate('Chat', { excursionId: excursion.id, excursionTitle: excursion.title, excursionStatus: excursion.status })}
               />
             )}
           </View>
@@ -433,10 +435,11 @@ interface OrganizerActionsProps {
   onDelete: () => void;
   onPendingRequests: () => void;
   onParticipants: () => void;
+  onChat: () => void;
 }
 
 const OrganizerActions: React.FC<OrganizerActionsProps> = ({
-  excursion, canFinish, disabled, onFinish, onEdit, onDelete, onPendingRequests, onParticipants,
+  excursion, canFinish, disabled, onFinish, onEdit, onDelete, onPendingRequests, onParticipants, onChat,
 }) => (
   <View style={styles.organizerContainer}>
     <View style={styles.organizerBadge}>
@@ -445,6 +448,10 @@ const OrganizerActions: React.FC<OrganizerActionsProps> = ({
 
     <TouchableOpacity style={styles.secondaryButton} onPress={onParticipants} disabled={disabled}>
       <Text style={styles.secondaryButtonText}>👥 Ver participantes ({excursion.acceptedCount})</Text>
+    </TouchableOpacity>
+
+    <TouchableOpacity style={styles.chatButton} onPress={onChat} disabled={disabled}>
+      <Text style={styles.chatButtonText}>💬 Chat del grupo</Text>
     </TouchableOpacity>
 
     {excursion.status === 'published' && (
@@ -482,11 +489,12 @@ interface ParticipantActionsProps {
   onLeave: () => void;
   onConfirmAttendance: () => void;
   onParticipants: () => void;
+  onChat: () => void;
 }
 
 const ParticipantActions: React.FC<ParticipantActionsProps> = ({
   excursion, canLeave, inAttendanceWindow, disabled,
-  onRequestJoin, onCancelRequest, onLeave, onConfirmAttendance, onParticipants,
+  onRequestJoin, onCancelRequest, onLeave, onConfirmAttendance, onParticipants, onChat,
 }) => {
   const { myParticipationStatus, attendanceConfirmed, availableSpots, status } = excursion;
 
@@ -495,6 +503,12 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
       <TouchableOpacity style={styles.secondaryButton} onPress={onParticipants} disabled={disabled}>
         <Text style={styles.secondaryButtonText}>👥 Ver participantes ({excursion.acceptedCount})</Text>
       </TouchableOpacity>
+
+      {myParticipationStatus === 'accepted' && (
+        <TouchableOpacity style={styles.chatButton} onPress={onChat} disabled={disabled}>
+          <Text style={styles.chatButtonText}>💬 Chat del grupo</Text>
+        </TouchableOpacity>
+      )}
 
       {myParticipationStatus === null && status === 'published' && (
         availableSpots > 0 ? (
@@ -609,4 +623,6 @@ const styles = StyleSheet.create({
   confirmedBadgeText: { color: colors.easyText, fontSize: 14, fontWeight: '700' },
   infoBadge: { backgroundColor: colors.backgroundSoft, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.grayLight },
   infoBadgeText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
+  chatButton: { borderWidth: 1.5, borderColor: colors.primaryGradientEnd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', backgroundColor: colors.infoBg },
+  chatButtonText: { color: colors.primaryGradientEnd, fontSize: 14, fontWeight: '600' },
 });

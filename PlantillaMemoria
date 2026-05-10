@@ -1,0 +1,92 @@
+Hay que mirarse la normativa de la EINA al respecto. Los nuestros son siempre de Tipo B.
+
+Entre esa normativa hay unas instrucciones de formato (sección 2 Memoria, de ese documento). Brevemente, pero léelas enteras, unas 20 páginas (o máximo de 10.000 palabras), sin incluir índices, resumen y bibliografía, más los anexos que hagan falta de la longitud que haga falta. El uso de “IA” debe referenciarse claramente en la memoria.
+
+Yo diría que una memoria de TFG de menos de 50 páginas en total (incluyendo anexos) será vista por un tribunal como claramente insuficiente, salvo que se haya hecho un trabajo muy bueno y se haya resumido y explicado muy bien (que no es lo habitual). Entre 60 y 80 páginas suele ser un buen objetivo para un trabajo “normal”, y posiblemente algo más si se quiere sacar una nota media/alta, aunque esto último depende de muchos factores, principalmente de que el trabajo realizado le resulte “llamativo” o “interesante” al tribunal, lo que es imposible de saber por adelantado (aunque en general se tiende a favorecer aquellos trabajos que han hecho algo de “introducción a la investigación”).
+
+El TFG es un trabajo académico. Por normativa no puede incluir logotipos o referencias corporativas en ninguna parte del mismo, salvo en la introducción y en los agradecimientos. Tampoco puede haber partes que no se incluyan por ser “confidenciales”. Se debe incluir todo lo necesario para poder evaluar el trabajo realizado.
+Resumen
+Obligatorio según la normativa (mirad el formato). Puede ser algo como Introducción + Conclusiones condensadas en, pongamos, 300 palabras. En castellano y en inglés.
+
+Tabla de contenidos / índice, que incluya los anexos
+Obligatorio.
+Introducción
+Uno o dos párrafos de introducción al trabajo: brevemente qué se quería hacer, y cuáles han sido los principales resultados alcanzados.
+
+El resto del documento se estructura como sigue: explicar la estructura del documento. Puede ser buena idea señalar que se ha cumplido explícitamente con la recomendación de 20 páginas/10.000 palabras, o explicar explícitamente por qué no se ha hecho.
+Contexto
+Poner en contexto este TFG: ¿cómo encaja en el Mundo? ¿Es algo innovador o hay cosas similares en el mercado? Si hay cosas similares, ¿cómo se compara esta TFG con ellas? ¿Se hace en una empresa, en un grupo de investigación o es un proyecto independiente? ¿Se plantea como un primer paso hacia algo mayor o como un trabajo por sí mismo? ¿O es una mejora de algo existente? ¿Es una parte de algo que se ha hecho trabajando con más gente o es el resultado de un trabajo individual? Si es parte de un producto/sistema más grande, o una mejora o nueva versión, habrá que esforzarse en la memoria, y luego en la presentación, por trazar límites claros entre lo que había y lo que se ha hecho.
+Fuentes de datos integrados / mostrados / procesados [elegir lo que sea]
+Si es un proyecto que integra, muestra, procesa… datos, hablar de las fuentes de los mismos. De dónde salen, qué licencias tienen, cuánto ha habido que procesarlos… Si el proceso de los datos ha sido una parte importante del trabajo, habrá que contarlo en detalle en la sección 3. Si el proyecto usa datos pero el procesado no se ha hecho como parte del trabajo, entonces basta con contarlo aquí.
+
+Análisis del problema
+Explicar brevemente, de manera general, lo que se va a hacer.
+Requisitos / Historias de Usuario / Casos de Uso [elegir lo que sea]
+Se pueden combinar requisitos y casos de uso. No se suelen hacer otras combinaciones (p.ej. no tiene sentido tener requisitos e historias de usuario, dado que ambas cosas sirven para lo mismo). Los requisitos pueden dividirse en funcionales y no funcionales, pero esta distinción es a veces un poco arbitraria. Si hay requisitos estrictos de prestaciones o de seguridad, generalmente serán no funcionales, hay que describirlos lo más objetiva y cuantitativamente posible. 
+Interfaces de usuario
+Para productos con GUI, orientados principalmente a humanos. Desde el punto de vista de la captura de requisitos: borradores, bocetos, navegación entre pantallas etc. No la GUI tal y como queda finalmente, que se contaría en la sección 3.
+Interfaces para la integración en aplicaciones [este título de sección seguramente haya que adaptarlo a lo que se haya hecho]
+Para productos sin GUI, o con una GUI de administración o similar pero cuyo principal valor está en proporcionar servicios a otros sistemas software (p.ej. ofreciendo una API). Una API no significa solo “una API REST”. Una API pueden ser las clases y operaciones públicas principales de una biblioteca de software, un conjunto de scripts de procesamiento de datos… En cualquier caso aquí se describe esa API desde el punto de vista de la captura de requisitos: qué se quiere ofrecer a otros sistemas. El resultado final se describiría en la sección 3.
+
+
+Diseño de la solución
+Arquitectura
+Describir la idea general: estilo arquitectural principal del sistema, frameworks utilizados y qué implicaciones arquitecturales tienen. Si hay consideraciones importantes de prestaciones o de seguridad que ha habido que tener en cuenta.
+
+Contexto
+Esta sección seguramente solo tendrá sentido para sistemas que son parte de otros mayores, para dejar claro qué parte es lo del TFG, y qué parte es lo que ya había.
+Modelo de datos
+Un modelo de entidades y relaciones (diagrama de clases UML o, si no hay otro remedio, notación prehistórica E-R). Más las explicaciones fundamentales: qué es cada entidad, qué es cada atributo, qué implican las relaciones. 
+
+Se puede complementar con un modelo de implementación (modelo relacional, documentos JSON en MongoDB o lo que sea), pero lo más crítico es el modelo de entidades y relaciones.
+Paquetes y clases
+Un diagrama UML con los paquetes principales. Tanto del front-end como del back-end, si hay de ambos. Sin mucho detalle, es una idea general.
+Un diagrama UML de clases con las clases principales. De nuevo tanto de front-end como de back-end si tiene sentido. Centrarse en las clases principales, en sus relaciones y en sus operaciones principales. 
+
+Y, por supuesto, todas las explicaciones pertinentes que permitan entender esos diagramas: descripción de los paquetes, papel de las clases principales en el sistema, patrones de diseño y estilos arquitecturales empleados, principales decisiones tomadas (decisiones implica que había varias opciones sensatas y se ha elegido una de ellas basándose en criterios racionales), 
+Componentes y conectores
+Un diagrama UML con los componentes principales y sus conectores. Dependiendo del tipo de sistema esos componentes serán objetos, o serán procesos que agruparán a muchos objetos, o serán servicios web…
+Algún diagrama UML (secuencia, interacción, máquinas de estados…) ilustrando el comportamiento dinámico del sistema suele ser interesante, especialmente si este comportamiento, o alguna parte del mismo, tiene cierta complejidad.
+
+Y, por supuesto, todas las explicaciones pertinentes que permitan entender esos diagramas: qué es cada componente, qué permite cada conector, documentación de las interfaces (puertos/API) más relevantes del sistema, aspectos de concurrencia/asincronicidad/paralelismo/operaciones periódicas, estilos y patrones arquitecturales y de diseño que tiene más sentido explicar aquí que en la parte de módulos, decisiones de diseño relevantes en esta parte etc.
+
+Relacionar componentes con módulos es interesante (cada línea de código que hemos puesto en un módulo debería ejecutarse en algún componente), sobre todo si ayuda a clarificar algún aspecto complejo.
+Distribución
+Un diagrama UML del despliegue (artefactos en nodos interconectados) y/o de la instalación (artefactos sobre el sistema de ficheros). 
+
+Y, por supuesto, todas las explicaciones pertinentes que permitan entender esos diagramas: qué es cada nodo, qué tipo de rutas los interconectan, cómo se relacionan los artefactos de estos diagramas con los componentes de la sección anterior… Todo esto es especialmente interesante si hay un despliegue automatizado, cosas en Cloud, en contenedores (Docker directamente, o se usa Kubernetes o similar…) y habría que explicar todo eso en esta sección.
+
+Implementación
+Si esto es lo bastante grande, puede tenerse un capítulo entero (sería el 4) para la Implementación. 
+
+Aspectos interesantes de la implementación que sean de bajo nivel de abstracción, o estén localizados en módulos/componentes particulares y que no se hayan considerado lo bastante interesantes para el punto de arquitectura se pueden poner aquí.
+
+Aquí se puede describir la GUI que ha quedado al final del sistema, e incluso poner un diagrama de navegación definitivo si tiene sentido. 
+
+Si la construcción se ha automatizado (TravisCI, Github Actions o similares), describir aquí el pipeline de construcción. Describir el uso de sistemas de control de versiones (cuántos repositorios, qué workflows de Git etc.).
+Procesamiento de datos
+Si el proyecto ha tenido una parte importante de procesamiento de datos, explicarlo aquí. Si no, es probable que esta sección sobre.
+Pruebas
+Se incluyen tests automáticos y tests manuales para validación y verificación, pero también tests de prestaciones o tests de estrés (sobrecarga) si el tipo de proyecto los requiere. Herramientas usadas, planificación de las pruebas, guiones de las pruebas manuales, integración de las pruebas automáticas en el pipeline de construcción. Si se ha usado Sonar o algún otro analizador estático de código explicarlo aquí.
+
+Cualquier tipo de proyecto va a requerir pruebas: cómo se validan los resultados es crítico se haga lo que se haga.
+Gestión del proyecto
+Señalar la metodología de gestión que se ha seguido. Dependiendo de la misma incluir planes, división del trabajo en iteraciones/sprints, horas de esfuerzo realizadas, análisis de riesgos realizado, etc.
+
+Plan de producto / plan de negocio / análisis de mercado
+Opcional. En la mayoría de los TFG no vamos a tener esto, pero si el TFG tiene orientación a mercado (por ejemplo, es algo que se ha hecho con la intención de comercializarlo, o de llegar a comercializar una versión futura), cabe perfectamente tener un capítulo sobre esto en la memoria.
+Conclusiones y trabajo futuro
+Resumir los resultados/aportaciones principales del proyecto. Dar ideas de por dónde podría seguir el trabajo. Valoración personal del proyecto y una descripción de las incidencias y problemas encontrados y resueltos durante el mismo, así como una valoración crítica del trabajo, experiencia/aprendizaje adquiridos etc.
+Referencias
+Las citas bibliográficas que se hayan hecho en el texto. Numeradas consecutivamente según se indica en las recomendaciones de la EINA.
+
+Índices de figuras, tablas, nomenclatura, glosarios…
+No es obligatorio, poner lo que tenga sentido.
+Anexos
+Manual de administración si tiene sentido.
+Manual de despliegue/instalación si tiene sentido.
+Manual de usuario si tiene sentido.
+Diagramas detallados que en el cuerpo principal de la memoria eran demasiado.
+Resultados detallados de pruebas que en el cuerpo principal de la memoria eran demasiado.
+Documentación completa de la/s API más relevantes.
+Etc.

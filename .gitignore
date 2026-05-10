@@ -77,3 +77,9 @@ yarn-error.log
 /.claude
 .env
 .env.local
+PlantillaMemoria.txt
+proximoquehacer.txt
+CLAUDE.md
+/backend/.env
+/backend/.env.local
+/backend/CLAUDE.md
