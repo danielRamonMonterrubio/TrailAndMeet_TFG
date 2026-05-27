@@ -101,7 +101,11 @@ const PendingRequestsScreen: React.FC<Props> = ({ navigation }) => {
             const isProcessing = processingId === req.usuarioId;
             return (
               <View key={req.usuarioId} style={styles.requestCard}>
-                <View style={styles.requestInfo}>
+                <TouchableOpacity
+                  style={styles.requestInfo}
+                  onPress={() => navigation.navigate('UserProfile', { userId: req.usuarioId, username: name })}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.requestName}>{name}</Text>
                   {req.usuario?.correo && req.usuario.nombreUsuario && (
                     <Text style={styles.requestEmail}>{req.usuario.correo}</Text>
@@ -109,7 +113,8 @@ const PendingRequestsScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.requestDate}>
                     Solicitado: {new Date(req.fechaSolicitud).toLocaleDateString('es-ES')}
                   </Text>
-                </View>
+                  <Text style={styles.viewProfileHint}>Ver perfil →</Text>
+                </TouchableOpacity>
                 {isProcessing ? (
                   <ActivityIndicator size="small" color={colors.primaryGradientStart} />
                 ) : (
@@ -169,6 +174,7 @@ const styles = StyleSheet.create({
   requestName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   requestEmail: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   requestDate: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  viewProfileHint: { fontSize: 11, color: colors.primaryGradientStart, marginTop: 4, fontWeight: '600' },
   requestActions: { gap: 8 },
   acceptButton: { backgroundColor: colors.primaryGradientStart, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 8 },
   acceptButtonText: { color: colors.white, fontSize: 13, fontWeight: '700' },

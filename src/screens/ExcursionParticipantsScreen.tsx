@@ -77,7 +77,12 @@ const ExcursionParticipantsScreen: React.FC<Props> = ({ navigation }) => {
             const name = p.nombreUsuario ?? p.usuarioId;
             const isOwner = p.usuarioId === organizerId;
             return (
-              <View key={p.usuarioId} style={styles.participantCard}>
+              <TouchableOpacity
+                key={p.usuarioId}
+                style={styles.participantCard}
+                onPress={() => navigation.navigate('UserProfile', { userId: p.usuarioId, username: name })}
+                activeOpacity={0.7}
+              >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
                 </View>
@@ -102,7 +107,7 @@ const ExcursionParticipantsScreen: React.FC<Props> = ({ navigation }) => {
                     <Text style={styles.acceptedTagText}>Aceptado</Text>
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </ScrollView>

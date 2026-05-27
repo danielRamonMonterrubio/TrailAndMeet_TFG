@@ -18,6 +18,10 @@ import PendingRequestsScreen from "../screens/PendingRequestsScreen";
 import EditExcursionScreen from "../screens/EditExcursionScreen";
 import ExcursionParticipantsScreen from "../screens/ExcursionParticipantsScreen";
 import ChatScreen from "../screens/ChatScreen";
+import ProfileScreen from "../screens/ProfileScreen";
+import EditProfileScreen from "../screens/EditProfileScreen";
+import UserProfileScreen from "../screens/UserProfileScreen";
+import UserSearchScreen from "../screens/UserSearchScreen";
 
 import { AuthContext } from "../context/AuthContext";
 import { ChatUnreadContext } from "../context/ChatUnreadContext";
@@ -27,10 +31,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   RegisterStep1: undefined;
-  RegisterStep2: {
-    email: string;
-    password: string;
-  };
+  RegisterStep2: { email: string; password: string };
   ExcursionList: undefined;
   MyExcursions: undefined;
   MyChats: undefined;
@@ -40,6 +41,10 @@ export type RootStackParamList = {
   PendingRequests: { excursionId: string; excursionTitle: string };
   EditExcursion: { excursionId: string };
   ExcursionParticipants: { excursionId: string; excursionTitle: string; organizerId: string };
+  Profile: undefined;
+  EditProfile: undefined;
+  UserProfile: { userId: string; username: string };
+  UserSearch: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +68,7 @@ const ExcursionListStack = () => (
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
+    <Stack.Screen name="UserProfile" component={UserProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -74,6 +80,7 @@ const MyExcursionsStack = () => (
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
+    <Stack.Screen name="UserProfile" component={UserProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -81,6 +88,15 @@ const MyChatsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MyChats" component={MyChatsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
+  </Stack.Navigator>
+);
+
+const ProfileStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Profile" component={ProfileScreen} />
+    <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+    <Stack.Screen name="UserSearch" component={UserSearchScreen} />
+    <Stack.Screen name="UserProfile" component={UserProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -103,6 +119,7 @@ const AppStack = () => {
           if (route.name === "ExcursionList") iconName = "map";
           else if (route.name === "MyExcursions") iconName = "briefcase";
           else if (route.name === "MyChats") iconName = "chat";
+          else if (route.name === "Profile") iconName = "account";
           return <MaterialDesignIcons name={iconName} size={size} color={color} />;
         },
       })}
@@ -137,6 +154,16 @@ const AppStack = () => {
         listeners={({ navigation }) => ({
           tabPress: () => {
             navigation.navigate('MyChats' as never, { screen: 'MyChats' } as never);
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{ title: "Perfil" }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Profile' as never, { screen: 'Profile' } as never);
           },
         })}
       />
