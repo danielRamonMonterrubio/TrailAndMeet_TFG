@@ -348,7 +348,49 @@ chat_lectura {
   lastReadAt: timestamp
   PRIMARY KEY (usuarioId, excursionId)
 }
+
+foro {
+  id: SERIAL (PK)
+  codigo: VARCHAR(6) UNIQUE (auto: generar_codigo_foro())
+  titulo: VARCHAR(255)
+  descripcion: TEXT
+  tipo: "publico" | "privado"
+  password_hash: TEXT | null
+  portada_url: TEXT | null  (path en Storage, no URL completa)
+  categorias: TEXT[]  (GIN index)
+  creadoPor: UUID (FK → usuario.id)
+  created_at: TIMESTAMPTZ
+}
+
+foro_miembro {
+  foroId: number (FK → foro.id ON DELETE CASCADE)
+  usuarioId: UUID (FK → usuario.id ON DELETE CASCADE)
+  fechaUnion: TIMESTAMPTZ
+  PRIMARY KEY (foroId, usuarioId)
+}
+
+publicacion {
+  id: SERIAL (PK)
+  foroId: number (FK → foro.id ON DELETE CASCADE)
+  usuarioId: UUID (FK → usuario.id ON DELETE CASCADE)
+  titulo: VARCHAR(255)
+  contenido: TEXT
+  imagen_url: TEXT | null  (path en Storage)
+  createdAt: TIMESTAMPTZ
+  INDEX (foroId, createdAt DESC)
+}
+
+comentario {
+  id: SERIAL (PK)
+  publicacionId: number (FK → publicacion.id ON DELETE CASCADE)
+  usuarioId: UUID (FK → usuario.id ON DELETE CASCADE)
+  contenido: TEXT
+  createdAt: TIMESTAMPTZ
+  INDEX (publicacionId, createdAt ASC)
+}
 ```
+
+Storage bucket `forum-images`: privado. Políticas: SELECT auth.role()='authenticated', INSERT auth.role()='authenticated', DELETE auth.uid()=(storage.foldername(name))[1].
 
 **SQL para activar CASCADE en participacion (si no se ha hecho):**
 ```sql
@@ -383,6 +425,17 @@ ADD CONSTRAINT "participacion_excursionId_fkey"
 - Al crear excursión, `create-excursion-with-gpx` inserta al organizador en `participacion` con `status='accepted'`
 - El organizador cuenta como participante y ocupa una plaza
 - Por eso `send-message` y `get-chat-messages` validan `status='accepted'` (no hay caso especial para organizador)
+
+**Foros — moderador = creador**:
+- `foro.creadoPor` determina quién es moderador. No hay tabla separada de roles.
+- El creador se inserta en `foro_miembro` al crear el foro (como cualquier miembro).
+- `leave-forum` bloquea si `user.id === foro.creadoPor` (moderador no puede abandonar).
+- `kick-forum-member` bloquea si `targetUserId === foro.creadoPor` (no puede expulsarse a sí mismo ni a nadie si no es moderador).
+
+**Foros — imágenes privadas**:
+- `portada_url` e `imagen_url` en BD almacenan el path relativo en Storage (ej: `covers/abc/1234.jpg`), NO la URL completa.
+- Para mostrar la imagen, la Edge Function llama `supabase.storage.from('forum-images').createSignedUrl(path, 3600)`.
+- El frontend recibe la signed URL en la respuesta JSON; no accede directamente a Storage.
 
 **Notas de diagnóstico**:
 - Si `isOrganizer` llega en false: revisar `get-excursion-detail` → `creadoPor` y `userId` del token

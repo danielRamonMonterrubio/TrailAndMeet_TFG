@@ -4,7 +4,7 @@ App móvil React Native (Android/iOS) para organizar y unirse a excursiones de m
 
 ## Stack
 
-- **Frontend**: React Native 0.83 + TypeScript, React Navigation v7 (native-stack + bottom-tabs), `react-native-maps` (Google Maps), `react-native-linear-gradient`, `@react-native-vector-icons/material-design-icons`, `fast-xml-parser` (parsing GPX), `react-native-config` (env vars), `@react-native-async-storage/async-storage`.
+- **Frontend**: React Native 0.83 + TypeScript, React Navigation v7 (native-stack + bottom-tabs + `@react-navigation/material-top-tabs`), `react-native-maps` (Google Maps), `react-native-linear-gradient`, `@react-native-vector-icons/material-design-icons`, `fast-xml-parser` (parsing GPX), `react-native-config` (env vars), `@react-native-async-storage/async-storage`, `react-native-tab-view`, `react-native-pager-view` (needed for material top tabs — requires native build).
 - **Backend**: Supabase (Auth + Postgres + Storage + Edge Functions Deno). Toda la lógica vive en Edge Functions; el frontend llama vía `fetch` a `${SUPABASE_URL}/functions/v1/<func>`.
 - **Plataforma de desarrollo**: Windows. Shell por defecto bash (sintaxis Unix). PowerShell también disponible.
 
@@ -14,11 +14,13 @@ App móvil React Native (Android/iOS) para organizar y unirse a excursiones de m
 App.tsx                    -> AuthProvider + ChatUnreadProvider + AppNavigator
 src/
   navigation/
-    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Chats).
+    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Comunidad).
                              RootStackParamList define todos los screens. TabPress listeners en Tab.Screen resetean stacks internos.
                              ExcursionParticipants recibe { excursionId, excursionTitle, organizerId }.
                              Chat recibe { excursionId, excursionTitle, excursionStatus }.
-                             Tab "Chats" muestra badge con totalUnread de ChatUnreadContext.
+                             Tab "Comunidad" muestra badge con totalUnread de ChatUnreadContext.
+                             ComunidadStack contiene: ComunidadTopTabs (material-top-tabs con Foros y Chats) + todas las pantallas de foros y chat.
+                             ComunidadTopTabs → MyForumsScreen (tab Foros) + MyChatsScreen (tab Chats).
   screens/
     WelcomeScreen, LoginScreen, RegisterStep1Screen, RegisterStep2Screen
     ExcursionListScreen    -> Listar con filtros. useFocusEffect recarga al recibir foco.
@@ -42,6 +44,23 @@ src/
     MyChatsScreen          -> Lista de chats activos del usuario (todas sus excursiones aceptadas).
                              Preview: último mensaje, tiempo relativo, badge de no leídos estilo WhatsApp.
                              useFocusEffect recarga y actualiza totalUnread en ChatUnreadContext.
+                             Ahora es sub-tab dentro de ComunidadTopTabs.
+    MyForumsScreen         -> Sub-tab raíz de foros. Lista foros a los que pertenece el usuario.
+                             Botones "Explorar foros" (→ ExploreForums) y "Crear foro" (→ CreateForum).
+                             useFocusEffect recarga.
+    ExploreForumsScreen    -> Búsqueda de foros: por código (#XXXXXX) o texto (ILIKE título).
+                             Chips de categorías predefinidas. Infinite scroll (offset pagination).
+                             Badge "Miembro" en foros ya unidos. Navega a ForumDetail al pulsar.
+    CreateForumScreen      -> Crear foro: portada (picker imagen), título, descripción, categorías
+                             (chips predefinidos + campo libre), tipo público/privado, contraseña si privado.
+    ForumDetailScreen      -> Portada banner, info del foro, botón unirse/abandonar (con modal password
+                             para privados), botón miembros, lista de publicaciones con cursor DESC.
+                             Solo miembros pueden crear publicaciones. isOwner puede eliminar posts.
+    ForumMembersScreen     -> Lista de miembros con avatar inicial, badge Moderador, fecha de unión.
+                             Moderador ve botón expulsar (no en su propia fila).
+    CreatePostScreen       -> Crear publicación: título, contenido, imagen opcional.
+    PostDetailScreen       -> Post completo + comentarios ASC + input comentario inline.
+                             KeyboardAvoidingView. Owner/moderador puede eliminar post o comentarios.
   components/
     buttons/               -> AuthButton, PrimaryButton
     cards/                 -> ExcursionCard, FeatureItem
@@ -65,6 +84,14 @@ src/
     chatService.ts         -> sendMessage, getChatMessages (cursor pagination), markChatRead, getMyChats, subscribeToChatMessages (Realtime).
                              Interfaces: ChatMessage { id, excursionId, usuarioId, contenido, createdAt, usuario? }, ChatPreview { excursionId, titulo, excursionStatus, lastMsg*, unreadCount }.
                              Todos los métodos usan getAuthToken() con reintento (3 intentos, backoff 100ms).
+    forumService.ts        -> createForum, getForums, getForumDetail, joinForum, leaveForum, getMyForums,
+                             kickMember, createPost, getPosts, deletePost, createComment, getPostDetail,
+                             deleteComment, getForumMembers.
+                             Interfaces: ForumSummary, ForumDetail, Post, Comment, ForumMember.
+                             Mismo patrón getAuthToken() con 3 reintentos.
+    forumStorageService.ts -> pickAndUploadCover(userId) → 'covers/{userId}/{timestamp}.jpg'
+                             pickAndUploadPostImage(userId) → 'posts/{userId}/{timestamp}.jpg'
+                             Bucket privado 'forum-images'. Usa launchImageLibrary + base64 → Uint8Array → supabase.storage.upload.
     mappers/excursionMapper.ts
   models/Excursion.ts      -> Tipos ExcursionDifficulty, ExcursionType, interfaz Excursion
   types/
@@ -82,6 +109,9 @@ backend/
                              request-join-excursion, cancel-join-request, leave-excursion, confirm-attendance,
                              get-pending-requests, respond-join-request, get-excursion-participants,
                              send-message, get-chat-messages, mark-chat-read, get-my-chats,
+                             create-forum, get-forums, get-forum-detail, join-forum, leave-forum,
+                             get-my-forums, kick-forum-member, create-post, get-posts, delete-post,
+                             create-comment, get-post-detail, delete-comment, get-forum-members,
                              parse-and-create-excursion (LEGACY)
 android/
   app/
@@ -107,7 +137,14 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **PendingRequestsScreen** | `src/screens/PendingRequestsScreen.tsx` | Ver solicitudes pendientes; organizador acepta/rechaza. |
 | **ExcursionParticipantsScreen** | `src/screens/ExcursionParticipantsScreen.tsx` | Listar participantes confirmados con badges (Dueño/Confirmado/Aceptado). |
 | **ChatScreen** | `src/screens/ChatScreen.tsx` | Chat de grupo por excursión. Burbujas WhatsApp, separadores de fecha, paginación cursor, Realtime, mensajes pendientes. Params: `{ excursionId, excursionTitle, excursionStatus }`. |
-| **MyChatsScreen** | `src/screens/MyChatsScreen.tsx` | Lista de todos los chats activos del usuario con preview y badge de no leídos. |
+| **MyChatsScreen** | `src/screens/MyChatsScreen.tsx` | Lista de todos los chats activos del usuario con preview y badge de no leídos. Sub-tab de Comunidad. |
+| **MyForumsScreen** | `src/screens/MyForumsScreen.tsx` | Foros del usuario. Sub-tab de Comunidad. Botones Explorar y Crear foro. |
+| **ExploreForumsScreen** | `src/screens/ExploreForumsScreen.tsx` | Buscar foros por código o texto. Chips de categorías. Infinite scroll. |
+| **CreateForumScreen** | `src/screens/CreateForumScreen.tsx` | Crear foro con portada, categorías chips, tipo público/privado y contraseña. |
+| **ForumDetailScreen** | `src/screens/ForumDetailScreen.tsx` | Detalle del foro: portada, posts paginados DESC, acciones unirse/abandonar. |
+| **ForumMembersScreen** | `src/screens/ForumMembersScreen.tsx` | Lista de miembros del foro. Moderador puede expulsar. Params: `{ foroId, foroTitulo }`. |
+| **CreatePostScreen** | `src/screens/CreatePostScreen.tsx` | Crear publicación en un foro. Params: `{ foroId, foroTitulo }`. |
+| **PostDetailScreen** | `src/screens/PostDetailScreen.tsx` | Post + comentarios ASC + input comentario. Params: `{ postId, postTitulo, foroId }`. |
 
 ## Rutas Backend (Edge Functions)
 
@@ -150,6 +187,24 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **get-chat-messages** | `backend/supabase/functions/get-chat-messages/` | Mensajes paginados (cursor por id, 50 por página, orden ASC). Input: `{ excursionId, cursor?, limit? }`. Dual-client. |
 | **mark-chat-read** | `backend/supabase/functions/mark-chat-read/` | UPSERT en `chat_lectura` con `lastReadAt = NOW()`. Al abrir chat y al recibir mensaje nuevo. Dual-client. |
 | **get-my-chats** | `backend/supabase/functions/get-my-chats/` | Chats del usuario vía RPC `obtener_mis_chats`. Preview (último msg, unreadCount) ordenado por actividad. Dual-client. |
+
+### Foros
+| Función | Ruta | Descripción |
+|---------|------|-------------|
+| **create-forum** | `backend/supabase/functions/create-forum/` | Crea foro + inserta creador como miembro. bcryptjs para hash de contraseña. Genera signed URL portada. Dual-client. |
+| **get-forums** | `backend/supabase/functions/get-forums/` | Buscar foros. Regex `#XXXXXX` = búsqueda por código; texto = ILIKE título (solo públicos). Signed URLs. |
+| **get-forum-detail** | `backend/supabase/functions/get-forum-detail/` | Detalle del foro + isMember + isModerador + memberCount + signed URL portada. |
+| **join-forum** | `backend/supabase/functions/join-forum/` | Unirse al foro. bcryptjs.compareSync para privados. 409 si ya miembro. Dual-client. |
+| **leave-forum** | `backend/supabase/functions/leave-forum/` | Abandonar foro. Bloquea al moderador (creadoPor). Dual-client. |
+| **get-my-forums** | `backend/supabase/functions/get-my-forums/` | Foros del usuario vía JOIN foro_miembro. Signed URLs. isModerador. Dual-client. |
+| **kick-forum-member** | `backend/supabase/functions/kick-forum-member/` | Expulsar miembro (solo moderador, no puede expulsarse a sí mismo). Dual-client. |
+| **create-post** | `backend/supabase/functions/create-post/` | Crear publicación. Valida membresía. Dual-client. |
+| **get-posts** | `backend/supabase/functions/get-posts/` | Posts paginados cursor DESC (id < cursor, 20/página). Foros privados requieren membresía. Signed URLs. commentCount, isOwner. |
+| **delete-post** | `backend/supabase/functions/delete-post/` | Eliminar post. Owner OR moderador. Borra imagen de Storage. Dual-client. |
+| **create-comment** | `backend/supabase/functions/create-comment/` | Crear comentario. Valida membresía via post's foroId. Dual-client. |
+| **get-post-detail** | `backend/supabase/functions/get-post-detail/` | Post + comentarios ASC + isOwner/isModerador + signed URL. |
+| **delete-comment** | `backend/supabase/functions/delete-comment/` | Eliminar comentario. Owner OR moderador. Dual-client. |
+| **get-forum-members** | `backend/supabase/functions/get-forum-members/` | Miembros del foro con esModerador flag. Foros privados requieren membresía. Devuelve isModerador del caller. Dual-client. |
 
 ### Legado
 | Función | Ruta | Descripción |
@@ -196,7 +251,7 @@ npm run lint
 - "Actualizando servicios de Google Play" en el mapa = API key + SHA1 correctos, solo Play Services desactualizado.
 - En Windows no hay `grep`; usar `findstr /i` con adb logcat.
 
-## Estado actual (2026-05-18)
+## Estado actual (2026-05-28)
 
 ### ✅ Funcionalidades completamente implementadas:
 - **Login y registro** (2 pasos)
@@ -232,6 +287,21 @@ npm run lint
   - RPC `obtener_mis_chats` en PostgreSQL con LATERAL joins para preview eficiente
   - Badge en tab "Chats" via `ChatUnreadContext.totalUnread`
   - Excursión finalizada → input deshabilitado, banner solo lectura
+- **Foros** (Reddit-style: Forum → Posts → Comments)
+  - Tabla `foro` con código único auto-generado (6 chars, fn `generar_codigo_foro()`)
+  - Tabla `foro_miembro` (PK compuesta foroId+usuarioId, ON DELETE CASCADE)
+  - Tabla `publicacion` + tabla `comentario` (ambas ON DELETE CASCADE)
+  - Storage bucket `forum-images` (privado, signed URLs 1h)
+  - Categorías como `text[]` con GIN index
+  - Foros públicos: visibles sin unirse; privados: solo se acceden por código + contraseña (bcrypt)
+  - Moderador = creador del foro. Puede expulsar miembros, eliminar posts/comentarios
+  - Moderador no puede abandonar su propio foro
+  - Tab "Chats" renombrada a "Comunidad" con material-top-tabs (Foros | Chats)
+  - 14 Edge Functions de foros deployadas en Supabase
+  - 7 pantallas de foros implementadas
+  - Búsqueda por código `#XXXXXX` o texto (ILIKE) en ExploreForumsScreen
+  - Paginación cursor DESC para posts (20/página); ASC para comentarios (todos de golpe)
+  - Imágenes en posts con signed URLs; foros con portada opcional
 
 ### 🔐 Estado del patrón dual-client (seguridad Edge Functions):
 
@@ -240,10 +310,13 @@ npm run lint
 - `request-join-excursion`, `cancel-join-request`, `leave-excursion`, `confirm-attendance`
 - `get-pending-requests`, `respond-join-request`, `get-my-excursions`
 - `send-message`, `get-chat-messages`, `mark-chat-read`, `get-my-chats`
+- `create-forum`, `join-forum`, `leave-forum`, `get-my-forums`, `kick-forum-member`
+- `create-post`, `delete-post`, `create-comment`, `delete-comment`, `get-forum-members`
 
 **✅ Con SERVICE_ROLE_KEY (sin auth header, válido para operaciones públicas):**
 - `auth-check-email`, `auth-check-username`, `auth-login`, `auth-logout`
 - `get-filtered-excursions`, `get-excursion-participants`, `download-gpx`
+- `get-forums`, `get-forum-detail`, `get-posts`, `get-post-detail`
 - `parse-and-create-excursion` (LEGACY)
 
 **⚠️ Pendiente de dual-client:**
@@ -269,6 +342,20 @@ npm run lint
 - Intermitente: a veces carga, a veces no. Relacionado con Google Play Services y SHA1.
 - SHA1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` (registrado en Google Cloud)
 - El timeout de 5s (mapReadyRef) evita freeze; si no carga muestra mensaje de error no bloqueante
+
+**Signed URLs en imágenes de foros**:
+- El bucket `forum-images` es privado. Las imágenes se sirven con signed URLs (3600s = 1h).
+- Las URLs se generan en las Edge Functions con SERVICE_ROLE_KEY.
+- Si el usuario lleva la app abierta >1h, las imágenes caducan. Se renuevan en el próximo `useFocusEffect`.
+
+**react-native-pager-view (Comunidad tabs)**:
+- Tiene código nativo; cualquier cambio en la navegación de tabs requiere rebuild (`npm run android`).
+- Las pantallas de foros (ForumDetail, PostDetail, etc.) viven en `ComunidadStack`, no dentro del top-tab, para poder hacer full-screen navigation.
+
+**Imágenes de foros y posts — path con timestamp**:
+- Se sube la imagen antes de crear el foro/post (no hay ID todavía).
+- Path: `covers/{userId}/{Date.now()}.jpg` o `posts/{userId}/{Date.now()}.jpg`.
+- Si el usuario cancela el formulario tras subir imagen, el archivo queda huérfano en Storage.
 
 **database.types.ts**:
 - Encoding UTF-16 LE (con BOM) — si lo lees con herramientas que asumen UTF-8 aparecerá con caracteres extraños entre letras. Usar como referencia de tipos, no editar manualmente.
