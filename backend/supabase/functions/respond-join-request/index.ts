@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -49,13 +57,10 @@ export async function handler(req: Request): Promise<Response> {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
     const { data: { user }, error: userError } = await authClient.auth.getUser(token)
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Usuario no autenticado' }),
@@ -63,10 +68,9 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Cargar excursión y validar que el usuario es el organizador
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, creadoPor, capacidad, status')
+      .select('id, creadoPor, capacidad, status, titulo')
       .eq('id', excursionId)
       .single()
 
@@ -91,7 +95,6 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Verificar que existe la solicitud pendiente
     const { data: solicitud, error: solicitudError } = await supabase
       .from('participacion')
       .select('excursionId, usuarioId, status')
@@ -101,7 +104,6 @@ export async function handler(req: Request): Promise<Response> {
       .maybeSingle()
 
     if (solicitudError) {
-      console.error('Error consultando solicitud:', solicitudError)
       return new Response(
         JSON.stringify({ error: solicitudError.message }),
         { status: 500, headers: corsHeaders }
@@ -124,12 +126,13 @@ export async function handler(req: Request): Promise<Response> {
         .eq('status', 'pending')
 
       if (deleteError) {
-        console.error('Error rechazando solicitud:', deleteError)
         return new Response(
           JSON.stringify({ error: deleteError.message }),
           { status: 500, headers: corsHeaders }
         )
       }
+
+      notify([applicantId], '❌ Solicitud rechazada', `Tu solicitud para "${excursion.titulo}" fue rechazada`, 'request_rejected', { excursionId: String(excursionId) })
 
       return new Response(
         JSON.stringify({ success: true, action: 'rejected' }),
@@ -137,7 +140,7 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // action === 'accept': comprobar plazas
+    // action === 'accept'
     const { count: acceptedCount, error: countError } = await supabase
       .from('participacion')
       .select('*', { count: 'exact', head: true })
@@ -145,7 +148,6 @@ export async function handler(req: Request): Promise<Response> {
       .eq('status', 'accepted')
 
     if (countError) {
-      console.error('Error contando aceptados:', countError)
       return new Response(
         JSON.stringify({ error: 'Error comprobando plazas' }),
         { status: 500, headers: corsHeaders }
@@ -154,28 +156,26 @@ export async function handler(req: Request): Promise<Response> {
 
     if ((acceptedCount ?? 0) >= excursion.capacidad) {
       return new Response(
-        JSON.stringify({ error: 'No quedan plazas disponibles, no se puede aceptar más solicitudes' }),
+        JSON.stringify({ error: 'No quedan plazas disponibles' }),
         { status: 409, headers: corsHeaders }
       )
     }
 
     const { error: updateError } = await supabase
       .from('participacion')
-      .update({
-        status: 'accepted',
-        fechaUnion: new Date().toISOString(),
-      })
+      .update({ status: 'accepted', fechaUnion: new Date().toISOString() })
       .eq('excursionId', excursionId)
       .eq('usuarioId', applicantId)
       .eq('status', 'pending')
 
     if (updateError) {
-      console.error('Error aceptando solicitud:', updateError)
       return new Response(
         JSON.stringify({ error: updateError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
+
+    notify([applicantId], '✅ Solicitud aceptada', `Tu solicitud para "${excursion.titulo}" fue aceptada`, 'request_accepted', { excursionId: String(excursionId) })
 
     return new Response(
       JSON.stringify({ success: true, action: 'accepted' }),

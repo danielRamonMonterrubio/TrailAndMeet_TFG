@@ -4,23 +4,22 @@ App móvil React Native (Android/iOS) para organizar y unirse a excursiones de m
 
 ## Stack
 
-- **Frontend**: React Native 0.83 + TypeScript, React Navigation v7 (native-stack + bottom-tabs + `@react-navigation/material-top-tabs`), `react-native-maps` (Google Maps), `react-native-linear-gradient`, `@react-native-vector-icons/material-design-icons`, `fast-xml-parser` (parsing GPX), `react-native-config` (env vars), `@react-native-async-storage/async-storage`, `react-native-tab-view`, `react-native-pager-view` (needed for material top tabs — requires native build).
+- **Frontend**: React Native 0.83 + TypeScript, React Navigation v7 (native-stack + bottom-tabs + `@react-navigation/material-top-tabs`), `react-native-maps` (Google Maps), `react-native-linear-gradient`, `@react-native-vector-icons/material-design-icons`, `fast-xml-parser` (parsing GPX), `react-native-config` (env vars), `@react-native-async-storage/async-storage`, `react-native-tab-view`, `react-native-pager-view` (needed for material top tabs — requires native build), `@react-native-firebase/app`, `@react-native-firebase/messaging` (push notifications FCM v1).
 - **Backend**: Supabase (Auth + Postgres + Storage + Edge Functions Deno). Toda la lógica vive en Edge Functions; el frontend llama vía `fetch` a `${SUPABASE_URL}/functions/v1/<func>`.
 - **Plataforma de desarrollo**: Windows. Shell por defecto bash (sintaxis Unix). PowerShell también disponible.
 
 ## Estructura
 
 ```
-App.tsx                    -> AuthProvider + ChatUnreadProvider + AppNavigator
+App.tsx                    -> AuthProvider + ChatUnreadProvider + NotificationProvider + AppNavigator
 src/
   navigation/
-    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Comunidad).
-                             RootStackParamList define todos los screens. TabPress listeners en Tab.Screen resetean stacks internos.
-                             ExcursionParticipants recibe { excursionId, excursionTitle, organizerId }.
-                             Chat recibe { excursionId, excursionTitle, excursionStatus }.
+    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Comunidad + Perfil).
+                             RootStackParamList define todos los screens incluido Notifications.
                              Tab "Comunidad" muestra badge con totalUnread de ChatUnreadContext.
-                             ComunidadStack contiene: ComunidadTopTabs (material-top-tabs con Foros y Chats) + todas las pantallas de foros y chat.
-                             ComunidadTopTabs → MyForumsScreen (tab Foros) + MyChatsScreen (tab Chats).
+                             ComunidadTopTabs incluye BrandHeader encima del tab navigator (Foros | Chats).
+                             BrandHeader en ComunidadTopTabs tiene campana con badge de notificaciones.
+                             AppStack carga unreadCount de notificaciones al montar vía getNotifications().
   screens/
     WelcomeScreen, LoginScreen, RegisterStep1Screen, RegisterStep2Screen
     ExcursionListScreen    -> Listar con filtros. useFocusEffect recarga al recibir foco.
@@ -44,10 +43,10 @@ src/
     MyChatsScreen          -> Lista de chats activos del usuario (todas sus excursiones aceptadas).
                              Preview: último mensaje, tiempo relativo, badge de no leídos estilo WhatsApp.
                              useFocusEffect recarga y actualiza totalUnread en ChatUnreadContext.
-                             Ahora es sub-tab dentro de ComunidadTopTabs.
+                             Sub-tab dentro de ComunidadTopTabs.
     MyForumsScreen         -> Sub-tab raíz de foros. Lista foros a los que pertenece el usuario.
                              Botones "Explorar foros" (→ ExploreForums) y "Crear foro" (→ CreateForum).
-                             useFocusEffect recarga.
+                             useFocusEffect recarga. SIN BrandHeader propio (está en ComunidadTopTabs).
     ExploreForumsScreen    -> Búsqueda de foros: por código (#XXXXXX) o texto (ILIKE título).
                              Chips de categorías predefinidas. Infinite scroll (offset pagination).
                              Badge "Miembro" en foros ya unidos. Navega a ForumDetail al pulsar.
@@ -61,14 +60,24 @@ src/
     CreatePostScreen       -> Crear publicación: título, contenido, imagen opcional.
     PostDetailScreen       -> Post completo + comentarios ASC + input comentario inline.
                              KeyboardAvoidingView. Owner/moderador puede eliminar post o comentarios.
+                             PostHeader como useMemo para evitar que la imagen recargue al abrir teclado.
+                             Al enviar comentario se añade optimistamente con username del usuario actual.
+    NotificationsScreen    -> Lista de notificaciones del usuario (últimas 50).
+                             No leídas: fondo verde + barra izquierda + título en negrita + punto.
+                             Al pulsar: modal con detalle grande, se marca como leída en ese momento.
+                             Botón "marcar todo leído" (check-all) con Alert de confirmación.
+                             useFocusEffect recarga. Actualiza NotificationContext.unreadCount.
   components/
     buttons/               -> AuthButton, PrimaryButton
     cards/                 -> ExcursionCard, FeatureItem
     form/                  -> FormCard, FormInput, FormSelect, FilePickerInput, DatePickerInput, TimePickerInput, SlotsInput
-    headers/               -> BrandHeader (con logout button opcional)
+    headers/               -> BrandHeader (logout opcional + campana notificaciones con badge rojo)
   context/
-    AuthContext.tsx        -> Sesión persistida en AsyncStorage + sincronizada con supabase.auth
+    AuthContext.tsx        -> Sesión persistida en AsyncStorage + sincronizada con supabase.auth.
+                             Al restaurar sesión llama registerPushToken() automáticamente.
     ChatUnreadContext.tsx  -> totalUnread (suma de no leídos de todos los chats). MyChatsScreen lo actualiza; AppStack lo lee para el badge del tab.
+    NotificationContext.tsx -> unreadCount (notificaciones no leídas). AppStack lo carga al montar;
+                             NotificationsScreen lo actualiza al marcar como leídas. BrandHeader lo lee para el badge de la campana.
   services/
     supabaseClient.ts      -> createClient con AsyncStorage como storage
     authService.ts         -> checkEmail/Username, login, logout, completeRegistration (todos vía Edge Functions)
@@ -92,6 +101,10 @@ src/
     forumStorageService.ts -> pickAndUploadCover(userId) → 'covers/{userId}/{timestamp}.jpg'
                              pickAndUploadPostImage(userId) → 'posts/{userId}/{timestamp}.jpg'
                              Bucket privado 'forum-images'. Usa launchImageLibrary + base64 → Uint8Array → supabase.storage.upload.
+    notificationService.ts -> registerPushToken(), getNotifications(), markNotificationsRead(id?).
+                             registerPushToken: pide permiso FCM, obtiene token del dispositivo, llama register-push-token.
+                             markNotificationsRead: si se pasa id marca solo esa; sin id marca todas.
+                             Interface: Notificacion { id, titulo, cuerpo, tipo, data, leida, createdAt }.
     mappers/excursionMapper.ts
   models/Excursion.ts      -> Tipos ExcursionDifficulty, ExcursionType, interfaz Excursion
   types/
@@ -103,19 +116,11 @@ src/
                              headerSubtitle: #D1FAE5, errorRed, successGreen, infoBg, grayLight, borderColor, white)
     styles.ts              -> `shared` StyleSheet con container, content, header, headerTitle, headerSubtitle, screenTitle, sectionTitle, card, label, input, passwordRow, errorText, primaryButton, primaryButtonText, iconCircle, row
 backend/
-  supabase/functions/      -> auth-check-email, auth-check-username, auth-complete-registration, auth-login, auth-logout,
-                             create-excursion-with-gpx, update-excursion, delete-excursion, finish-excursion,
-                             get-filtered-excursions, get-my-excursions, get-excursion-detail, download-gpx,
-                             request-join-excursion, cancel-join-request, leave-excursion, confirm-attendance,
-                             get-pending-requests, respond-join-request, get-excursion-participants,
-                             send-message, get-chat-messages, mark-chat-read, get-my-chats,
-                             create-forum, get-forums, get-forum-detail, join-forum, leave-forum,
-                             get-my-forums, kick-forum-member, create-post, get-posts, delete-post,
-                             create-comment, get-post-detail, delete-comment, get-forum-members,
-                             parse-and-create-excursion (LEGACY)
+  supabase/functions/      -> [ver sección Rutas Backend]
 android/
   app/
     debug.keystore         -> Keystore local del proyecto (NO ~/.android/debug.keystore)
+    google-services.json   -> Configuración Firebase (FCM). NO commitear.
     src/main/AndroidManifest.xml
 .env                       -> SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_MAPS_API_KEY (no commiteado)
 database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UTF-16 LE)
@@ -126,17 +131,17 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | Pantalla | Ruta | Descripción |
 |----------|------|-------------|
 | **WelcomeScreen** | `src/screens/WelcomeScreen.tsx` | Pantalla inicial con opciones de login/registro. |
-| **LoginScreen** | `src/screens/LoginScreen.tsx` | Formulario de login (email + contraseña). |
+| **LoginScreen** | `src/screens/LoginScreen.tsx` | Formulario de login. Llama `registerPushToken()` tras login exitoso. |
 | **RegisterStep1Screen** | `src/screens/RegisterStep1Screen.tsx` | Registro paso 1: email, username, contraseña. |
 | **RegisterStep2Screen** | `src/screens/RegisterStep2Screen.tsx` | Registro paso 2: nombre, apellido, edad, teléfono, foto. |
-| **ExcursionListScreen** | `src/screens/ExcursionListScreen.tsx` | Listar excursiones públicas con filtros (dificultad, tipo). Recarga al recibir foco. |
-| **MyExcursionsScreen** | `src/screens/MyExcursionsScreen.tsx` | Excursiones del usuario con filtros: todas / organizadas / en las que participa. Recarga al recibir foco. |
+| **ExcursionListScreen** | `src/screens/ExcursionListScreen.tsx` | Listar excursiones públicas con filtros (dificultad, tipo). |
+| **MyExcursionsScreen** | `src/screens/MyExcursionsScreen.tsx` | Excursiones del usuario con filtros: todas / organizadas / en las que participa. |
 | **CreateExcursionScreen** | `src/screens/CreateExcursionScreen.tsx` | Crear nueva excursión: nombre, descripción, fecha, hora, GPX, plazas, dificultad, tipo. |
 | **ExcursionDetailScreen** | `src/screens/ExcursionDetailScreen.tsx` | Detalle completo: mapa, info, acciones según rol (organizador vs participante). |
 | **EditExcursionScreen** | `src/screens/EditExcursionScreen.tsx` | Editar excursión (solo organizador, antes de la fecha de inicio). |
 | **PendingRequestsScreen** | `src/screens/PendingRequestsScreen.tsx` | Ver solicitudes pendientes; organizador acepta/rechaza. |
 | **ExcursionParticipantsScreen** | `src/screens/ExcursionParticipantsScreen.tsx` | Listar participantes confirmados con badges (Dueño/Confirmado/Aceptado). |
-| **ChatScreen** | `src/screens/ChatScreen.tsx` | Chat de grupo por excursión. Burbujas WhatsApp, separadores de fecha, paginación cursor, Realtime, mensajes pendientes. Params: `{ excursionId, excursionTitle, excursionStatus }`. |
+| **ChatScreen** | `src/screens/ChatScreen.tsx` | Chat de grupo por excursión. Burbujas WhatsApp, separadores de fecha, paginación cursor, Realtime. Params: `{ excursionId, excursionTitle, excursionStatus }`. |
 | **MyChatsScreen** | `src/screens/MyChatsScreen.tsx` | Lista de todos los chats activos del usuario con preview y badge de no leídos. Sub-tab de Comunidad. |
 | **MyForumsScreen** | `src/screens/MyForumsScreen.tsx` | Foros del usuario. Sub-tab de Comunidad. Botones Explorar y Crear foro. |
 | **ExploreForumsScreen** | `src/screens/ExploreForumsScreen.tsx` | Buscar foros por código o texto. Chips de categorías. Infinite scroll. |
@@ -145,72 +150,80 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **ForumMembersScreen** | `src/screens/ForumMembersScreen.tsx` | Lista de miembros del foro. Moderador puede expulsar. Params: `{ foroId, foroTitulo }`. |
 | **CreatePostScreen** | `src/screens/CreatePostScreen.tsx` | Crear publicación en un foro. Params: `{ foroId, foroTitulo }`. |
 | **PostDetailScreen** | `src/screens/PostDetailScreen.tsx` | Post + comentarios ASC + input comentario. Params: `{ postId, postTitulo, foroId }`. |
+| **NotificationsScreen** | `src/screens/NotificationsScreen.tsx` | Lista de notificaciones. Pulsar abre modal detalle y marca como leída. Botón marcar todo leído. |
 
 ## Rutas Backend (Edge Functions)
 
 ### Autenticación
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **auth-check-email** | `backend/supabase/functions/auth-check-email/` | Valida si el email está disponible. |
-| **auth-check-username** | `backend/supabase/functions/auth-check-username/` | Valida si el username está disponible. |
-| **auth-login** | `backend/supabase/functions/auth-login/` | Login con email + contraseña; devuelve session y user. |
-| **auth-complete-registration** | `backend/supabase/functions/auth-complete-registration/` | Completa registro: nombre, apellido, edad, teléfono, foto. (Solo SERVICE_ROLE_KEY — pendiente dual-client). |
-| **auth-logout** | `backend/supabase/functions/auth-logout/` | Cierra sesión e invalida el token. |
+| Función | Descripción |
+|---------|-------------|
+| **auth-check-email** | Valida si el email está disponible. |
+| **auth-check-username** | Valida si el username está disponible. |
+| **auth-login** | Login con email + contraseña; devuelve session y user. |
+| **auth-complete-registration** | Completa registro. (Solo SERVICE_ROLE_KEY — pendiente dual-client). |
+| **auth-logout** | Cierra sesión e invalida el token. |
 
 ### Gestión de Excursiones
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **create-excursion-with-gpx** | `backend/supabase/functions/create-excursion-with-gpx/` | Crea excursión, parsea GPX en backend, inserta al organizador como participante accepted. |
-| **update-excursion** | `backend/supabase/functions/update-excursion/` | Edita campos de excursión (solo organizador). Dual-client. |
-| **delete-excursion** | `backend/supabase/functions/delete-excursion/` | Elimina excursión y cascada. Borra GPX de Storage. Dual-client. |
-| **finish-excursion** | `backend/supabase/functions/finish-excursion/` | Marca excursión como finalizada. Dual-client. |
-| **get-filtered-excursions** | `backend/supabase/functions/get-filtered-excursions/` | Listar excursiones con filtros por dificultad/tipo. |
-| **get-my-excursions** | `backend/supabase/functions/get-my-excursions/` | Listar excursiones del usuario (organizadas + participación). Dual-client. |
-| **get-excursion-detail** | `backend/supabase/functions/get-excursion-detail/` | Detalle completo: info de ruta, estado de participación, counts. |
-| **download-gpx** | `backend/supabase/functions/download-gpx/` | Descargar GPX de Storage. (El frontend usa URL pública directa en su lugar.) |
+| Función | Descripción |
+|---------|-------------|
+| **create-excursion-with-gpx** | Crea excursión, parsea GPX en backend, inserta al organizador como participante accepted. |
+| **update-excursion** | Edita campos de excursión (solo organizador). Dual-client. |
+| **delete-excursion** | Elimina excursión y cascada. Borra GPX de Storage. Notifica a participantes. Dual-client. |
+| **finish-excursion** | Marca excursión como finalizada. Notifica a participantes. Dual-client. |
+| **get-filtered-excursions** | Listar excursiones con filtros por dificultad/tipo. |
+| **get-my-excursions** | Listar excursiones del usuario (organizadas + participación). Dual-client. |
+| **get-excursion-detail** | Detalle completo: info de ruta, estado de participación, counts. |
+| **download-gpx** | Descargar GPX de Storage. (El frontend usa URL pública directa en su lugar.) |
 
 ### Solicitudes y Participación
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **request-join-excursion** | `backend/supabase/functions/request-join-excursion/` | Solicitar unirse; crea participación con status='pending'. Dual-client. |
-| **cancel-join-request** | `backend/supabase/functions/cancel-join-request/` | Cancelar solicitud pendiente. Dual-client. |
-| **leave-excursion** | `backend/supabase/functions/leave-excursion/` | Abandonar excursión. Dual-client. |
-| **confirm-attendance** | `backend/supabase/functions/confirm-attendance/` | Confirmar asistencia (ventana: 1h antes a 2h después de fechaInicio). Dual-client. |
-| **get-pending-requests** | `backend/supabase/functions/get-pending-requests/` | Solicitudes pendientes (solo organizador). Dual-client. |
-| **respond-join-request** | `backend/supabase/functions/respond-join-request/` | Organizador acepta/rechaza solicitud. Dual-client. |
-| **get-excursion-participants** | `backend/supabase/functions/get-excursion-participants/` | Listar participantes aceptados de una excursión. |
+| Función | Descripción |
+|---------|-------------|
+| **request-join-excursion** | Solicitar unirse. Notifica al organizador. Dual-client. |
+| **cancel-join-request** | Cancelar solicitud pendiente. Dual-client. |
+| **leave-excursion** | Abandonar excursión. Notifica al organizador. Dual-client. |
+| **confirm-attendance** | Confirmar asistencia (ventana: 1h antes a 2h después). Notifica al organizador. Dual-client. |
+| **get-pending-requests** | Solicitudes pendientes (solo organizador). Dual-client. |
+| **respond-join-request** | Organizador acepta/rechaza solicitud. Notifica al solicitante. Dual-client. |
+| **get-excursion-participants** | Listar participantes aceptados de una excursión. |
 
 ### Chat
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **send-message** | `backend/supabase/functions/send-message/` | Enviar mensaje. Valida participante accepted + excursión no finished. Dual-client. |
-| **get-chat-messages** | `backend/supabase/functions/get-chat-messages/` | Mensajes paginados (cursor por id, 50 por página, orden ASC). Input: `{ excursionId, cursor?, limit? }`. Dual-client. |
-| **mark-chat-read** | `backend/supabase/functions/mark-chat-read/` | UPSERT en `chat_lectura` con `lastReadAt = NOW()`. Al abrir chat y al recibir mensaje nuevo. Dual-client. |
-| **get-my-chats** | `backend/supabase/functions/get-my-chats/` | Chats del usuario vía RPC `obtener_mis_chats`. Preview (último msg, unreadCount) ordenado por actividad. Dual-client. |
+| Función | Descripción |
+|---------|-------------|
+| **send-message** | Enviar mensaje. Notifica al resto de participantes. Dual-client. |
+| **get-chat-messages** | Mensajes paginados (cursor por id, 50/página, ASC). Dual-client. |
+| **mark-chat-read** | UPSERT en `chat_lectura` con `lastReadAt = NOW()`. Dual-client. |
+| **get-my-chats** | Chats del usuario vía RPC `obtener_mis_chats`. Dual-client. |
 
 ### Foros
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **create-forum** | `backend/supabase/functions/create-forum/` | Crea foro + inserta creador como miembro. bcryptjs para hash de contraseña. Genera signed URL portada. Dual-client. |
-| **get-forums** | `backend/supabase/functions/get-forums/` | Buscar foros. Regex `#XXXXXX` = búsqueda por código; texto = ILIKE título (solo públicos). Signed URLs. |
-| **get-forum-detail** | `backend/supabase/functions/get-forum-detail/` | Detalle del foro + isMember + isModerador + memberCount + signed URL portada. |
-| **join-forum** | `backend/supabase/functions/join-forum/` | Unirse al foro. bcryptjs.compareSync para privados. 409 si ya miembro. Dual-client. |
-| **leave-forum** | `backend/supabase/functions/leave-forum/` | Abandonar foro. Bloquea al moderador (creadoPor). Dual-client. |
-| **get-my-forums** | `backend/supabase/functions/get-my-forums/` | Foros del usuario vía JOIN foro_miembro. Signed URLs. isModerador. Dual-client. |
-| **kick-forum-member** | `backend/supabase/functions/kick-forum-member/` | Expulsar miembro (solo moderador, no puede expulsarse a sí mismo). Dual-client. |
-| **create-post** | `backend/supabase/functions/create-post/` | Crear publicación. Valida membresía. Dual-client. |
-| **get-posts** | `backend/supabase/functions/get-posts/` | Posts paginados cursor DESC (id < cursor, 20/página). Foros privados requieren membresía. Signed URLs. commentCount, isOwner. |
-| **delete-post** | `backend/supabase/functions/delete-post/` | Eliminar post. Owner OR moderador. Borra imagen de Storage. Dual-client. |
-| **create-comment** | `backend/supabase/functions/create-comment/` | Crear comentario. Valida membresía via post's foroId. Dual-client. |
-| **get-post-detail** | `backend/supabase/functions/get-post-detail/` | Post + comentarios ASC + isOwner/isModerador + signed URL. |
-| **delete-comment** | `backend/supabase/functions/delete-comment/` | Eliminar comentario. Owner OR moderador. Dual-client. |
-| **get-forum-members** | `backend/supabase/functions/get-forum-members/` | Miembros del foro con esModerador flag. Foros privados requieren membresía. Devuelve isModerador del caller. Dual-client. |
+| Función | Descripción |
+|---------|-------------|
+| **create-forum** | Crea foro + inserta creador como miembro. bcryptjs para hash contraseña. Dual-client. |
+| **get-forums** | Buscar foros por código `#XXXXXX` o texto ILIKE. Signed URLs. |
+| **get-forum-detail** | Detalle del foro + isMember + isModerador + memberCount + signed URL. |
+| **join-forum** | Unirse al foro. bcryptjs para privados. Dual-client. |
+| **leave-forum** | Abandonar foro. Bloquea al moderador. Dual-client. |
+| **get-my-forums** | Foros del usuario. Signed URLs. Dual-client. |
+| **kick-forum-member** | Expulsar miembro. Notifica al expulsado. Dual-client. |
+| **create-post** | Crear publicación. Valida membresía. Dual-client. |
+| **get-posts** | Posts paginados cursor DESC (20/página). Signed URLs. |
+| **delete-post** | Eliminar post. Owner OR moderador. Borra imagen de Storage. Dual-client. |
+| **create-comment** | Crear comentario. Notifica al autor del post. Dual-client. |
+| **get-post-detail** | Post + comentarios ASC + isOwner/isModerador + signed URL. |
+| **delete-comment** | Eliminar comentario. Owner OR moderador. Dual-client. |
+| **get-forum-members** | Miembros del foro con esModerador flag. Dual-client. |
+
+### Notificaciones Push
+| Función | Descripción |
+|---------|-------------|
+| **register-push-token** | Guarda token FCM del dispositivo en tabla `push_token`. Dual-client. |
+| **send-push-notification** | Helper interno: inserta en `notificacion` + envía FCM v1 a todos los tokens del usuario. Llamado por otras Edge Functions, no por el frontend directamente. Input: `{ userIds, titulo, cuerpo, tipo, data? }`. |
+| **get-notifications** | Devuelve últimas 50 notificaciones del usuario + unreadCount. Dual-client. |
+| **mark-notifications-read** | Marca como leídas. Si se pasa `{ id }` marca solo esa; sin id marca todas. Dual-client. |
 
 ### Legado
-| Función | Ruta | Descripción |
-|---------|------|-------------|
-| **parse-and-create-excursion** | `backend/supabase/functions/parse-and-create-excursion/` | DEPRECATED. No usar. |
-
+| Función | Descripción |
+|---------|-------------|
+| **parse-and-create-excursion** | DEPRECATED. No usar. |
 
 ## Convenciones de estilo
 
@@ -224,18 +237,22 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 ## Convenciones de arquitectura
 
 - **Lógica de negocio en Edge Functions, no en frontend**. Los servicios del frontend son envoltorios `fetch` finos.
+- **Edge Functions se despliegan desde el dashboard de Supabase** copiando y pegando el código. No se usan localmente ni con CLI.
 - **Auth**: el frontend NUNCA llama directamente a `supabase.auth.signInWithPassword`. Usa `authService` → Edge Function. La sesión sí se sincroniza con `supabase.auth.setSession` para queries autenticadas a Storage/tablas.
 - **Persistencia de sesión**: AsyncStorage clave `auth_session`. `AuthContext.setSession(null)` cierra sesión.
 - **GPX**: el archivo se sube a Supabase Storage; `create-excursion-with-gpx` lo parsea en backend. Para descargarlo el frontend usa URL pública directa (`supabase.storage.from('gpx-files').getPublicUrl(path)`) en lugar de la Edge Function `download-gpx`.
 - **Navegación tras login/crear excursión**: `navigation.reset({ index: 0, routes: [{ name: "ExcursionList" }] })`.
 - **Token retry**: todos los servicios usan un loop de 3 intentos con backoff 100ms antes de caer a ANON_KEY. Patrón en `getAuthToken()`.
 - **Dual-client en Edge Functions**: `authClient` (ANON_KEY + Authorization header) para validar usuario; `supabase` (SERVICE_ROLE_KEY) para operar. Ver `backend/CLAUDE.md` para el template completo.
+- **Notificaciones fire-and-forget**: las llamadas a `send-push-notification` desde otras Edge Functions usan `.catch()` y no se awaitan — un fallo en la notificación nunca bloquea la operación principal.
+- **FCM API v1**: se usa la API v1 de Firebase Cloud Messaging (la legacy está deshabilitada). Requiere OAuth2 con service account. Las credenciales (`FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`) van en Supabase Secrets, nunca en `.env`.
 
 ## Comandos
 
 ```bash
 npm start                  # Metro
 npm run android            # build + run en dispositivo/emulador
+adb reverse tcp:8081 tcp:8081  # Restaurar conexión Metro tras reconectar USB
 npm run ios
 npm test
 npm run lint
@@ -249,9 +266,10 @@ npm run lint
 - **AndroidManifest.xml** ya tiene `ACCESS_NETWORK_STATE` y `android:hardwareAccelerated="true"` en `MainActivity`.
 - **MapView dentro de ScrollView**: usar `scrollEnabled={false}` en el `MapView`.
 - "Actualizando servicios de Google Play" en el mapa = API key + SHA1 correctos, solo Play Services desactualizado.
-- En Windows no hay `grep`; usar `findstr /i` con adb logcat.
+- En Windows no hay `grep`; usar `findstr /i` con adb logcat. Para logs de React Native: `adb logcat -s ReactNativeJS:V`.
+- **Metro se pierde al reconectar USB**: ejecutar `adb reverse tcp:8081 tcp:8081`.
 
-## Estado actual (2026-05-28)
+## Estado actual (2026-06-01)
 
 ### ✅ Funcionalidades completamente implementadas:
 - **Login y registro** (2 pasos)
@@ -263,99 +281,90 @@ npm run lint
 - **Unirse / Abandonar / Solicitar unión / Cancelar solicitud**
 - **Gestión de solicitudes** (organizador acepta/rechaza desde PendingRequestsScreen)
 - **Lista de participantes** (ExcursionParticipantsScreen)
-  - Badge "Dueño" para el organizador (comparando `p.usuarioId === organizerId`)
-  - Badge "Confirmado" si asistencia confirmada, "Aceptado" si no
-  - `organizerId` se pasa como route param desde ExcursionDetailScreen
 - **Confirmar asistencia** (ventana: 1h antes a 2h después de fechaInicio)
 - **Editar excursión** (solo organizador, antes de la fecha)
 - **Finalizar excursión** (solo organizador, a partir de la fecha de inicio)
 - **Eliminar excursión**
-  - Dual-client pattern (authClient para validar, SERVICE_ROLE_KEY para DELETE)
-  - GPX path puede ser relativo o URL pública; la función extrae el path si es URL
-  - FK con ON DELETE CASCADE en `participacion.excursionId`
 - **Mis Excursiones** (filtros: todas/organizadas/unidas)
-- **Tab navigation** (Explorar + Mis Excursiones + Chats con estado independiente)
-- **Logout** (disponible en ExcursionList, MyExcursions y MyChats via BrandHeader)
+- **Tab navigation** (Explorar + Mis Excursiones + Comunidad + Perfil)
+- **Logout** (disponible en ExcursionList, MyExcursions via BrandHeader)
 - **Chat de grupo**
   - Tabla `mensaje` (ON DELETE CASCADE) + `chat_lectura` (lastReadAt por usuario por chat)
-  - Realtime via `supabase.channel`, filtrado client-side (no server-side por limitación camelCase)
-  - Paginación cursor: 50 mensajes, "Cargar mensajes anteriores" en cabecera de FlatList
-  - Mensajes en estado "enviando": bubble opacity 0.75 + spinner, sustituido al confirmar servidor
-  - Deduplicación Realtime vs HTTP: si el mensaje ya llegó por Realtime, no se añade duplicado
-  - Separadores de fecha entre días (Hoy / Ayer / fecha larga en español)
-  - No leídos: `COUNT(mensaje WHERE createdAt > lastReadAt AND usuarioId != yo)`
-  - RPC `obtener_mis_chats` en PostgreSQL con LATERAL joins para preview eficiente
-  - Badge en tab "Chats" via `ChatUnreadContext.totalUnread`
-  - Excursión finalizada → input deshabilitado, banner solo lectura
+  - Realtime via `supabase.channel`, filtrado client-side
+  - Paginación cursor: 50 mensajes
+  - Mensajes pendientes con spinner
+  - Deduplicación Realtime vs HTTP
+  - Separadores de fecha entre días
+  - Badge en tab "Comunidad" via `ChatUnreadContext`
+  - Excursión finalizada → input deshabilitado
 - **Foros** (Reddit-style: Forum → Posts → Comments)
-  - Tabla `foro` con código único auto-generado (6 chars, fn `generar_codigo_foro()`)
-  - Tabla `foro_miembro` (PK compuesta foroId+usuarioId, ON DELETE CASCADE)
-  - Tabla `publicacion` + tabla `comentario` (ambas ON DELETE CASCADE)
-  - Storage bucket `forum-images` (privado, signed URLs 1h)
-  - Categorías como `text[]` con GIN index
-  - Foros públicos: visibles sin unirse; privados: solo se acceden por código + contraseña (bcrypt)
-  - Moderador = creador del foro. Puede expulsar miembros, eliminar posts/comentarios
-  - Moderador no puede abandonar su propio foro
-  - Tab "Chats" renombrada a "Comunidad" con material-top-tabs (Foros | Chats)
-  - 14 Edge Functions de foros deployadas en Supabase
-  - 7 pantallas de foros implementadas
-  - Búsqueda por código `#XXXXXX` o texto (ILIKE) en ExploreForumsScreen
-  - Paginación cursor DESC para posts (20/página); ASC para comentarios (todos de golpe)
-  - Imágenes en posts con signed URLs; foros con portada opcional
+  - Foros públicos/privados con bcrypt
+  - Moderador = creador. Puede expulsar, eliminar posts/comentarios
+  - 14 Edge Functions de foros
+  - 7 pantallas de foros
+  - Imágenes con signed URLs
+- **Sistema de notificaciones push** (FCM v1)
+  - Tabla `push_token` + tabla `notificacion`
+  - Token FCM registrado al login y al restaurar sesión
+  - 10 tipos de notificación: join_request, request_accepted, request_rejected, left_excursion, attendance_confirmed, excursion_deleted, excursion_finished, new_message, new_comment, kicked_from_forum
+  - Campana en BrandHeader con badge rojo de no leídas
+  - NotificationsScreen: lista con distinción visual leída/no leída, modal detalle al pulsar, marcar todo leído
+  - Notificaciones se marcan como leídas al pulsar (no al entrar a la pantalla)
 
-### 🔐 Estado del patrón dual-client (seguridad Edge Functions):
+### 🔐 Estado del patrón dual-client:
 
-**✅ Con dual-client (authClient + SERVICE_ROLE_KEY):**
+**✅ Con dual-client:**
 - `update-excursion`, `delete-excursion`, `finish-excursion`
 - `request-join-excursion`, `cancel-join-request`, `leave-excursion`, `confirm-attendance`
 - `get-pending-requests`, `respond-join-request`, `get-my-excursions`
 - `send-message`, `get-chat-messages`, `mark-chat-read`, `get-my-chats`
 - `create-forum`, `join-forum`, `leave-forum`, `get-my-forums`, `kick-forum-member`
 - `create-post`, `delete-post`, `create-comment`, `delete-comment`, `get-forum-members`
+- `register-push-token`, `get-notifications`, `mark-notifications-read`
 
-**✅ Con SERVICE_ROLE_KEY (sin auth header, válido para operaciones públicas):**
+**✅ Con SERVICE_ROLE_KEY (operaciones públicas):**
 - `auth-check-email`, `auth-check-username`, `auth-login`, `auth-logout`
 - `get-filtered-excursions`, `get-excursion-participants`, `download-gpx`
 - `get-forums`, `get-forum-detail`, `get-posts`, `get-post-detail`
-- `parse-and-create-excursion` (LEGACY)
+- `send-push-notification` (llamado internamente con SERVICE_ROLE_KEY)
 
 **⚠️ Pendiente de dual-client:**
 - `auth-complete-registration` — MEDIUM priority
 
 ### ⚠️ Gotchas actuales:
 
+**FCM API v1 — credenciales**:
+- La API heredada de FCM está deshabilitada en este proyecto Firebase.
+- Se usa FCM v1 con service account y OAuth2 (JWT firmado con RS256).
+- `FCM_PRIVATE_KEY` se guarda en Supabase Secrets con `\n` literales; la Edge Function los convierte con `.replace(/\\n/g, '\n')`.
+- Las credenciales FCM NUNCA van en `.env` (se bundlearía en el APK).
+
+**Notificaciones fire-and-forget**:
+- Las Edge Functions llaman a `send-push-notification` vía fetch sin await.
+- Si falla la notificación, la operación principal (unirse, enviar mensaje, etc.) sigue funcionando.
+
+**Linter Deno en VS Code**:
+- Los errores `Cannot find name 'Deno'` en las Edge Functions son falsos positivos del linter de VS Code.
+- Deno no es Node.js; el linter TS no tiene los tipos de Deno. No afecta al funcionamiento en Supabase.
+
+**BrandHeader y Comunidad**:
+- El BrandHeader de la tab Comunidad está en `ComunidadTopTabs` (AppNavigation), NO en MyForumsScreen.
+- Esto evita que las tabs aparezcan por encima del header.
+
+**PostDetailScreen — imagen al abrir teclado**:
+- `PostHeader` es un `useMemo` (no un componente inline) para evitar que la imagen recargue al aparecer el teclado.
+
 **Eliminar excursión y CASCADE**:
-- La FK `participacion.excursionId → excursion.id` debe tener `ON DELETE CASCADE` en la BD
-- SQL a ejecutar en Supabase SQL Editor si no se ha hecho:
-  ```sql
-  ALTER TABLE "participacion"
-  DROP CONSTRAINT "participacion_excursionId_fkey",
-  ADD CONSTRAINT "participacion_excursionId_fkey"
-    FOREIGN KEY ("excursionId") REFERENCES "excursion"("id") ON DELETE CASCADE;
-  ```
+- La FK `participacion.excursionId → excursion.id` debe tener `ON DELETE CASCADE`.
 
 **Realtime y columnas camelCase**:
-- Los filtros server-side de Supabase Realtime no funcionan bien con columnas camelCase (ej: `excursionId`)
-- Solución: suscribirse a toda la tabla `mensaje` y filtrar client-side en el callback de `subscribeToChatMessages`
-
-**MapView en dispositivo físico**:
-- Intermitente: a veces carga, a veces no. Relacionado con Google Play Services y SHA1.
-- SHA1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` (registrado en Google Cloud)
-- El timeout de 5s (mapReadyRef) evita freeze; si no carga muestra mensaje de error no bloqueante
+- Los filtros server-side de Supabase Realtime no funcionan con camelCase. Filtrar client-side.
 
 **Signed URLs en imágenes de foros**:
-- El bucket `forum-images` es privado. Las imágenes se sirven con signed URLs (3600s = 1h).
-- Las URLs se generan en las Edge Functions con SERVICE_ROLE_KEY.
-- Si el usuario lleva la app abierta >1h, las imágenes caducan. Se renuevan en el próximo `useFocusEffect`.
+- Caducan a 1h. Se renuevan en el próximo `useFocusEffect`.
 
-**react-native-pager-view (Comunidad tabs)**:
-- Tiene código nativo; cualquier cambio en la navegación de tabs requiere rebuild (`npm run android`).
-- Las pantallas de foros (ForumDetail, PostDetail, etc.) viven en `ComunidadStack`, no dentro del top-tab, para poder hacer full-screen navigation.
-
-**Imágenes de foros y posts — path con timestamp**:
-- Se sube la imagen antes de crear el foro/post (no hay ID todavía).
-- Path: `covers/{userId}/{Date.now()}.jpg` o `posts/{userId}/{Date.now()}.jpg`.
-- Si el usuario cancela el formulario tras subir imagen, el archivo queda huérfano en Storage.
+**react-native-pager-view**:
+- Tiene código nativo; cambios en tabs requieren rebuild (`npm run android`).
 
 **database.types.ts**:
-- Encoding UTF-16 LE (con BOM) — si lo lees con herramientas que asumen UTF-8 aparecerá con caracteres extraños entre letras. Usar como referencia de tipos, no editar manualmente.
+- Encoding UTF-16 LE (con BOM). Usar como referencia, no editar manualmente.

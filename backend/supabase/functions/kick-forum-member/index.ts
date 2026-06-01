@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -43,7 +51,7 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: foro } = await supabase
       .from('foro')
-      .select('creadoPor')
+      .select('creadoPor, titulo')
       .eq('id', foroId)
       .maybeSingle()
 
@@ -66,9 +74,10 @@ export async function handler(req: Request): Promise<Response> {
       .eq('usuarioId', targetUserId)
 
     if (deleteError) {
-      console.error('Error expulsando miembro:', deleteError)
       return new Response(JSON.stringify({ error: deleteError.message }), { status: 500, headers: corsHeaders })
     }
+
+    notify([targetUserId], 'Expulsado del foro', `Has sido expulsado del foro "${foro.titulo}"`, 'kicked_from_forum', { foroId: String(foroId) })
 
     return new Response(
       JSON.stringify({ success: true }),

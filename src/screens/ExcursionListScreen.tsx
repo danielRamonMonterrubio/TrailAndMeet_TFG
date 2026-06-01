@@ -115,7 +115,7 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={shared.container}>
-      <BrandHeader onLogout={handleLogout} />
+      <BrandHeader onLogout={handleLogout} onNotifications={() => navigation.navigate('Notifications')} />
 
       {/* CONTENT */}
       <ScrollView contentContainerStyle={styles.content}>

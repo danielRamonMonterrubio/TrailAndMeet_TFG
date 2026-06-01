@@ -10,7 +10,6 @@ import { RootStackParamList } from '../navigation/AppNavigation';
 import { forumService, ForumSummary } from '../services/forumService';
 import { shared } from '../theme/styles';
 import { colors } from '../theme/colors';
-import BrandHeader from '../components/headers/BrandHeader';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -76,7 +75,6 @@ const MyForumsScreen = () => {
 
   return (
     <View style={shared.container}>
-      <BrandHeader title="Comunidad" subtitle="Mis Foros" showLogout />
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('ExploreForums')}>
           <MaterialDesignIcons name="magnify" size={18} color={colors.white} />

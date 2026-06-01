@@ -1,6 +1,6 @@
 # Backend TrailAndMeet - Edge Functions Supabase
 
-**Nota**: Las Edge Functions NO se ejecutan localmente. Se despliegan en Supabase y se invocan desde el frontend vía HTTP `fetch`.
+**Nota**: Las Edge Functions NO se ejecutan localmente. Se despliegan desde el **dashboard de Supabase** copiando y pegando el código en cada función. No se usa CLI ni entorno local.
 
 ## Stack
 - **Runtime**: Deno (TypeScript)
@@ -26,11 +26,6 @@ const supabase = createClient(
 )
 ```
 
-**Funciones que lo usan:**
-- `auth-check-email`, `auth-check-username`, `auth-login`, `auth-logout`
-- `get-filtered-excursions`, `get-excursion-participants`, `download-gpx`
-- `parse-and-create-excursion` (LEGACY)
-
 **Cuándo usarlo:** No requiere validar identidad del usuario, o la operación es pública.
 
 ---
@@ -42,7 +37,6 @@ const supabase = createClient(
 const authHeader = req.headers.get('Authorization')
 const token = authHeader?.replace('Bearer ', '')
 
-// Cliente PARA VALIDAR (verifica identidad real del usuario)
 const authClient = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -52,43 +46,32 @@ const authClient = createClient(
   }
 )
 
-// Cliente PARA OPERAR (bypassa RLS, pero usuario ya validado)
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-// 1. Validar
 const { data: { user }, error } = await authClient.auth.getUser(token)
 if (error || !user) return 401
-
-// 2. Verificar autorización (ej: es propietario)
-const { data: record } = await supabase.from('tabla').select().eq('id', id).single()
-if (record.owner !== user.id) return 403
-
-// 3. Realizar operación (ya con permisos confirmados)
-const { error: opError } = await supabase.from('tabla').update({...}).eq('id', id)
 ```
-
-**Funciones que usan dual-client (estado actual 2026-05-18):**
-- `update-excursion`, `delete-excursion`, `finish-excursion`
-- `request-join-excursion`, `cancel-join-request`, `leave-excursion`, `confirm-attendance`
-- `get-pending-requests`, `respond-join-request`, `get-my-excursions`
-- `send-message`, `get-chat-messages`, `mark-chat-read`, `get-my-chats`
-
-**⚠️ Pendiente de dual-client:**
-- `auth-complete-registration` — MEDIUM priority (actualmente usa SERVICE_ROLE_KEY)
 
 ---
 
-### **Frontend: Cliente Único Reutilizable**
-El frontend **crea el cliente UNA sola vez** y lo reutiliza:
+### **Patrón 3: Notificaciones fire-and-forget** ✅
+Las funciones que necesitan notificar llaman a `send-push-notification` sin await:
 
 ```typescript
-// src/services/supabaseClient.ts
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { storage: AsyncStorage })
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
 ```
+
+Este helper está copiado en cada función que lo necesita (no se puede importar entre funciones en el dashboard).
 
 ---
 
@@ -103,32 +86,55 @@ AUTENTICACIÓN
 └─ auth-logout/
 
 EXCURSIONES (CRUD)
-├─ create-excursion-with-gpx/       (crear + procesar GPX + insertar organizador en participacion)
-├─ update-excursion/                (solo organizador, dual-client)
-├─ delete-excursion/                (solo organizador, dual-client, borra GPX de Storage)
-├─ get-filtered-excursions/         (listar públicas con filtros)
-├─ get-my-excursions/               (mis excursiones creadas + unidas, dual-client)
-├─ get-excursion-detail/            (detalle + calcula isOrganizer + counts)
-├─ finish-excursion/                (marcar como finalizada, dual-client)
-└─ download-gpx/                    (descargar GPX; el frontend usa URL pública directa en su lugar)
+├─ create-excursion-with-gpx/
+├─ update-excursion/                (dual-client)
+├─ delete-excursion/                (dual-client, borra GPX, notifica participantes)
+├─ get-filtered-excursions/
+├─ get-my-excursions/               (dual-client)
+├─ get-excursion-detail/
+├─ finish-excursion/                (dual-client, notifica participantes)
+└─ download-gpx/
 
 PARTICIPACIÓN
-├─ request-join-excursion/          (dual-client)
+├─ request-join-excursion/          (dual-client, notifica organizador)
 ├─ cancel-join-request/             (dual-client)
-├─ join-excursion/                  (NO USADO por el frontend)
-├─ leave-excursion/                 (dual-client)
-└─ confirm-attendance/              (dual-client, ventana 1h antes a 2h después)
+├─ leave-excursion/                 (dual-client, notifica organizador)
+└─ confirm-attendance/              (dual-client, ventana 1h antes a 2h después, notifica organizador)
 
-SOLICITUDES & PARTICIPANTES (Solo organizador)
+SOLICITUDES & PARTICIPANTES
 ├─ get-pending-requests/            (dual-client)
-├─ respond-join-request/            (dual-client)
-└─ get-excursion-participants/      (público)
+├─ respond-join-request/            (dual-client, notifica solicitante)
+└─ get-excursion-participants/
 
 CHAT
-├─ send-message/                    (dual-client, valida participante accepted + excursión no finished)
-├─ get-chat-messages/               (dual-client, cursor pagination por id ASC, 50 msgs/página)
+├─ send-message/                    (dual-client, notifica resto de participantes)
+├─ get-chat-messages/               (dual-client, cursor pagination ASC, 50/página)
 ├─ mark-chat-read/                  (dual-client, UPSERT en chat_lectura)
 └─ get-my-chats/                    (dual-client, RPC obtener_mis_chats)
+
+FOROS
+├─ create-forum/                    (dual-client, bcryptjs hash contraseña)
+├─ get-forums/                      (público, signed URLs)
+├─ get-forum-detail/                (público, signed URL)
+├─ join-forum/                      (dual-client, bcryptjs compare para privados)
+├─ leave-forum/                     (dual-client, bloquea moderador)
+├─ get-my-forums/                   (dual-client, signed URLs)
+├─ kick-forum-member/               (dual-client, solo moderador, notifica expulsado)
+├─ create-post/                     (dual-client)
+├─ get-posts/                       (cursor DESC, signed URLs)
+├─ delete-post/                     (dual-client, owner OR moderador)
+├─ create-comment/                  (dual-client, notifica autor del post)
+├─ get-post-detail/                 (público)
+├─ delete-comment/                  (dual-client, owner OR moderador)
+└─ get-forum-members/               (dual-client)
+
+NOTIFICACIONES PUSH
+├─ register-push-token/             (dual-client, UPSERT en push_token)
+├─ send-push-notification/          (SERVICE_ROLE_KEY, llamado internamente)
+│                                    Input: { userIds, titulo, cuerpo, tipo, data? }
+│                                    Inserta en notificacion + envía FCM v1
+├─ get-notifications/               (dual-client, últimas 50, devuelve unreadCount)
+└─ mark-notifications-read/         (dual-client, id? → una sola; sin id → todas)
 
 PARSING (Legado)
 └─ parse-and-create-excursion/      (DEPRECATED - no usar)
@@ -136,160 +142,36 @@ PARSING (Legado)
 
 ---
 
-## Autenticación
+## Notificaciones — tipos disponibles
 
-### `auth-check-email` (POST)
-- **Input**: `{ email: string }`
-- **Output**: `{ exists: boolean }`
-- **BD**: Consulta `auth.users`
-
-### `auth-check-username` (POST)
-- **Input**: `{ username: string }`
-- **Output**: `{ exists: boolean }`
-- **BD**: Consulta tabla `usuario` (nombreUsuario)
-
-### `auth-complete-registration` (POST)
-- **Input**: `{ username, nombre, apellido, edad, telefono, fotoUrl? }`
-- **Output**: `{ success: boolean }`
-- **Token**: ACCESS_TOKEN (usuario autenticado)
-- **BD**: Inserta en tabla `usuario`
-- **⚠️ Usa solo SERVICE_ROLE_KEY — pendiente refactorizar a dual-client**
-
-### `auth-login` (POST)
-- **Input**: `{ email: string, password: string }`
-- **Output**: `{ session: Session, user: User }`
-- **BD**: `supabase.auth.signInWithPassword`
-
-### `auth-logout` (POST)
-- **Input**: `{ token: string }`
-- **Output**: `{ success: boolean }`
+| tipo | Cuándo se envía | Quién recibe |
+|------|-----------------|--------------|
+| `join_request` | alguien solicita unirse | organizador |
+| `request_accepted` | organizador acepta solicitud | solicitante |
+| `request_rejected` | organizador rechaza solicitud | solicitante |
+| `left_excursion` | participante abandona | organizador |
+| `attendance_confirmed` | participante confirma asistencia | organizador |
+| `excursion_deleted` | organizador elimina excursión | todos los participantes accepted |
+| `excursion_finished` | organizador finaliza excursión | todos los participantes accepted |
+| `new_message` | mensaje en chat | todos los participantes excepto emisor |
+| `new_comment` | comentario en post | autor del post |
+| `kicked_from_forum` | moderador expulsa miembro | miembro expulsado |
 
 ---
 
-## Excursiones - CRUD
+## FCM API v1 — Implementación
 
-### `create-excursion-with-gpx` (POST)
-- **Input**: `{ gpxBase64, p_titulo, p_dificultad, p_fecha_inicio, p_capacidad, p_tipo_excursion, p_punto_encuentro, p_imagen_url, p_gpx_path, p_status }`
-- **Output**: `{ success: boolean, routeInfo: { startPoint, totalDistance, maxElevation, ... } }`
-- **Proceso**:
-  1. Descarga GPX de Storage
-  2. Parsea XML → extrae trackpoints
-  3. Calcula distancia, elevación, etc.
-  4. INSERT `excursion` via RPC `crear_excursion`
-  5. **INSERT organizador en `participacion`** con `status='accepted'` (ocupa una plaza)
-  6. Devuelve routeInfo
+`send-push-notification` usa la API v1 de Firebase Cloud Messaging (la API heredada está deshabilitada).
 
-### `update-excursion` (POST) — dual-client
-- **Input**: `{ excursionId, titulo?, capacidad?, dificultad?, tipoExcursion?, puntoEncuentro?, meetingLat?, meetingLng?, imagenURL? }`
-- **Output**: `{ success: true, updated: string[] }`
-- **Validaciones**: Solo organizador, status='published', capacidad no puede bajar de participantes aceptados
-- **Campos NO editables**: `fechaInicio`, `GPXPath`
+Flujo:
+1. Crea un JWT firmado con RS256 usando el service account
+2. Intercambia el JWT por un OAuth2 access token en `https://oauth2.googleapis.com/token`
+3. Llama a `https://fcm.googleapis.com/v1/projects/{FCM_PROJECT_ID}/messages:send`
 
-### `delete-excursion` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Output**: `{ success: boolean }`
-- **Proceso**: DELETE excursion (CASCADE limpia participacion) + borra GPX de Storage
-- **Nota**: GPX puede ser path relativo o URL pública; la función extrae el path si es URL completa
-
-### `get-filtered-excursions` (POST)
-- **Input**: `{ dificultad?, tipoExcursion?, offset?, limit? }`
-- **Output**: `{ excursions: Excursion[], total: number }`
-
-### `get-my-excursions` (GET con query param) — dual-client
-- **Query params**: `?tipo=todas|organizadas|unidas`
-- **Output**: `Excursion[]`
-
-### `get-excursion-detail` (POST)
-- **Input**: `{ excursionId: number }`
-- **Output**: Objeto `ExcursionDetail`
-- **Campos clave devueltos**:
-  - `creadoPor`: UUID del organizador (→ `organizerId` en frontend)
-  - `isOrganizer`: boolean (calculado: `userId === creadoPor`)
-  - `acceptedCount`, `pendingCount`
-  - `myParticipationStatus`: 'pending' | 'accepted' | null
-  - `attendanceConfirmed`: boolean
-  - `availableSpots`: plazas libres
-  - `status`: 'published' | 'finished' | 'cancelled'
-
-### `finish-excursion` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Validaciones**: Solo organizador, status='published'
-- **BD**: UPDATE `excursion` SET `status='finished'`
-
-### `download-gpx` (POST)
-- **Input**: `{ gpxPath: string }`
-- **Output**: Texto XML crudo
-- **Nota**: El frontend lo evita y usa URL pública directa vía `supabase.storage.from('gpx-files').getPublicUrl(path)`
-
----
-
-## Participación - Join/Leave
-
-### `request-join-excursion` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Validaciones**: No es organizador, status='published', plazas disponibles, no está ya (pending/accepted)
-- **BD**: INSERT `participacion` con `status='pending'`
-
-### `cancel-join-request` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **BD**: DELETE fila `participacion` con status='pending'
-
-### `leave-excursion` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **BD**: DELETE fila `participacion` con status='accepted'
-
-### `confirm-attendance` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Validaciones**: Usuario accepted, dentro de ventana (1h antes a 2h después de fechaInicio)
-- **BD**: UPDATE `participacion` SET `attendance_confirmed_at = NOW()`
-
----
-
-## Solicitudes & Gestión Participantes (Solo Organizador)
-
-### `get-pending-requests` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Output**: `{ requests: [{ usuarioId, fechaSolicitud, usuario: { id, nombreUsuario, correo } }] }`
-
-### `respond-join-request` (POST) — dual-client
-- **Input**: `{ excursionId: number, applicantId: string, action: 'accept' | 'reject' }`
-- **Accept**: UPDATE `participacion` SET `status='accepted'`, `fechaUnion = NOW()`
-- **Reject**: DELETE fila
-
-### `get-excursion-participants` (POST)
-- **Input**: `{ excursionId: number }`
-- **Output**: `{ participants: [{ usuarioId, nombreUsuario, fechaUnion, attendanceConfirmed, attendanceConfirmedAt }] }`
-
----
-
-## Chat
-
-### `send-message` (POST) — dual-client
-- **Input**: `{ excursionId: number, contenido: string }`
-- **Output**: `{ success: true, mensaje: ChatMessage }`
-- **Validaciones**:
-  - Usuario es participante accepted (incluye organizador, que también está en participacion)
-  - Excursión no está finalizada (status !== 'finished')
-- **BD**: INSERT `mensaje` { excursionId, usuarioId, contenido }
-
-### `get-chat-messages` (POST) — dual-client
-- **Input**: `{ excursionId: number, cursor?: number, limit?: number }` (limit default 50)
-- **Output**: `{ messages: ChatMessage[], hasMore: boolean }`
-- **Paginación**: cursor-based por `id` (devuelve mensajes con `id < cursor`), orden ASC
-- **Validaciones**: Usuario es participante accepted
-
-### `mark-chat-read` (POST) — dual-client
-- **Input**: `{ excursionId: number }`
-- **Output**: `{ success: boolean }`
-- **BD**: UPSERT en `chat_lectura` { usuarioId, excursionId, lastReadAt: NOW() }
-- **Cuándo**: Al abrir el chat y al recibir un nuevo mensaje por Realtime
-
-### `get-my-chats` (POST) — dual-client
-- **Input**: `{}` (vacío)
-- **Output**: `{ chats: ChatPreview[] }`
-- **BD**: RPC `obtener_mis_chats(p_usuario_id)` con LATERAL joins para preview eficiente
-- **ChatPreview**: `{ excursionId, titulo, excursionStatus, lastMsgContenido, lastMsgAt, lastMsgUsername, lastMsgIsOwn, unreadCount }`
-- **Nota**: unreadCount = COUNT(mensaje WHERE createdAt > lastReadAt AND usuarioId != yo)
+Variables de entorno requeridas (Supabase Secrets):
+- `FCM_CLIENT_EMAIL`: email de la cuenta de servicio
+- `FCM_PRIVATE_KEY`: clave privada con `\n` literales (la función los convierte con `.replace(/\\n/g, '\n')`)
+- `FCM_PROJECT_ID`: ID del proyecto Firebase
 
 ---
 
@@ -305,32 +187,20 @@ usuario {
 
 excursion {
   id: SERIAL (PK)
-  titulo: string
-  dificultad: "Facil" | "Medio" | "Dificil"
-  tipoExcursion: string
-  fechaInicio: timestamp
-  capacidad: number
-  puntoEncuentro: string
-  meetingLat: float
-  meetingLng: float
-  distancia_total: float | null
-  elevacion_maxima: float | null
-  elevacion_minima: float | null
-  desnivel_positivo: float | null
+  titulo, dificultad, tipoExcursion, fechaInicio, capacidad
+  puntoEncuentro, meetingLat, meetingLng
+  distancia_total, elevacion_maxima, elevacion_minima, desnivel_positivo
   GPXPath: string (ruta en Storage)
   imagenURL: string | null
   status: "published" | "finished" | "cancelled"
   creadoPor: UUID (FK → usuario.id)
-  created_at: timestamp
 }
 
 participacion {
   usuarioId: UUID (FK → usuario.id)
   excursionId: number (FK → excursion.id ON DELETE CASCADE)
   status: "pending" | "accepted" | "rejected"
-  fechaSolicitud: timestamp
-  fechaUnion: timestamp (cuando fue aceptado)
-  attendance_confirmed_at: timestamp | null
+  fechaSolicitud, fechaUnion, attendance_confirmed_at
   PRIMARY KEY (usuarioId, excursionId)
 }
 
@@ -352,14 +222,12 @@ chat_lectura {
 foro {
   id: SERIAL (PK)
   codigo: VARCHAR(6) UNIQUE (auto: generar_codigo_foro())
-  titulo: VARCHAR(255)
-  descripcion: TEXT
+  titulo, descripcion
   tipo: "publico" | "privado"
   password_hash: TEXT | null
   portada_url: TEXT | null  (path en Storage, no URL completa)
   categorias: TEXT[]  (GIN index)
   creadoPor: UUID (FK → usuario.id)
-  created_at: TIMESTAMPTZ
 }
 
 foro_miembro {
@@ -373,11 +241,9 @@ publicacion {
   id: SERIAL (PK)
   foroId: number (FK → foro.id ON DELETE CASCADE)
   usuarioId: UUID (FK → usuario.id ON DELETE CASCADE)
-  titulo: VARCHAR(255)
-  contenido: TEXT
+  titulo, contenido
   imagen_url: TEXT | null  (path en Storage)
   createdAt: TIMESTAMPTZ
-  INDEX (foroId, createdAt DESC)
 }
 
 comentario {
@@ -386,18 +252,27 @@ comentario {
   usuarioId: UUID (FK → usuario.id ON DELETE CASCADE)
   contenido: TEXT
   createdAt: TIMESTAMPTZ
-  INDEX (publicacionId, createdAt ASC)
 }
-```
 
-Storage bucket `forum-images`: privado. Políticas: SELECT auth.role()='authenticated', INSERT auth.role()='authenticated', DELETE auth.uid()=(storage.foldername(name))[1].
+push_token {
+  id: uuid (PK)
+  userId: uuid (FK → auth.users ON DELETE CASCADE)
+  token: text
+  updatedAt: timestamptz
+  UNIQUE (userId, token)
+}
 
-**SQL para activar CASCADE en participacion (si no se ha hecho):**
-```sql
-ALTER TABLE "participacion"
-DROP CONSTRAINT "participacion_excursionId_fkey",
-ADD CONSTRAINT "participacion_excursionId_fkey"
-  FOREIGN KEY ("excursionId") REFERENCES "excursion"("id") ON DELETE CASCADE;
+notificacion {
+  id: uuid (PK)
+  userId: uuid (FK → auth.users ON DELETE CASCADE)
+  titulo: text
+  cuerpo: text
+  tipo: text
+  data: jsonb
+  leida: boolean DEFAULT false
+  createdAt: timestamptz
+  INDEX (userId, createdAt DESC)
+}
 ```
 
 ---
@@ -407,37 +282,35 @@ ADD CONSTRAINT "participacion_excursionId_fkey"
 - **Errores HTTP**: 400 (bad request), 401 (no autenticado), 403 (sin permisos), 404 (no encontrado), 409 (conflicto de negocio), 500 (server error)
 - **CORS**: Headers aplicados en todas las funciones, OPTIONS request siempre devuelve 200
 - **Timestamp**: `NOW()` en Postgres, ISO8601 en JSON
-- **UUIDs**: Autogenerados por Supabase Auth
 
 ---
 
 ## Gotchas
 
-**Realtime y columnas camelCase**:
-- Los filtros server-side de Supabase Realtime no funcionan bien con columnas camelCase (ej: `excursionId`)
-- `send-message` usa `subscribeToChatMessages` que filtra client-side: suscripción a toda la tabla `mensaje` + `if (msg.excursionId === numericId)` en el callback
+**Linter Deno en VS Code**:
+- `Cannot find name 'Deno'` es un falso positivo. El linter TS no tiene tipos Deno. No afecta a Supabase.
 
 **GPX en delete-excursion**:
-- El campo `GPXPath` en BD puede ser path relativo (`userId/file.gpx`) o URL pública completa
-- La función extrae el path de la URL si detecta que es una URL completa (contiene el bucket name)
+- `GPXPath` puede ser path relativo o URL pública. La función extrae el path si es URL completa.
 
 **Organizador en participacion**:
-- Al crear excursión, `create-excursion-with-gpx` inserta al organizador en `participacion` con `status='accepted'`
-- El organizador cuenta como participante y ocupa una plaza
-- Por eso `send-message` y `get-chat-messages` validan `status='accepted'` (no hay caso especial para organizador)
+- `create-excursion-with-gpx` inserta al organizador en `participacion` con `status='accepted'`.
+- Por eso `send-message` valida `status='accepted'` sin caso especial para el organizador.
 
 **Foros — moderador = creador**:
 - `foro.creadoPor` determina quién es moderador. No hay tabla separada de roles.
-- El creador se inserta en `foro_miembro` al crear el foro (como cualquier miembro).
-- `leave-forum` bloquea si `user.id === foro.creadoPor` (moderador no puede abandonar).
-- `kick-forum-member` bloquea si `targetUserId === foro.creadoPor` (no puede expulsarse a sí mismo ni a nadie si no es moderador).
+- `leave-forum` bloquea si `user.id === foro.creadoPor`.
 
 **Foros — imágenes privadas**:
-- `portada_url` e `imagen_url` en BD almacenan el path relativo en Storage (ej: `covers/abc/1234.jpg`), NO la URL completa.
-- Para mostrar la imagen, la Edge Function llama `supabase.storage.from('forum-images').createSignedUrl(path, 3600)`.
-- El frontend recibe la signed URL en la respuesta JSON; no accede directamente a Storage.
+- `portada_url` e `imagen_url` almacenan el path relativo, NO la URL completa.
+- La Edge Function genera signed URLs con `createSignedUrl(path, 3600)`.
 
-**Notas de diagnóstico**:
-- Si `isOrganizer` llega en false: revisar `get-excursion-detail` → `creadoPor` y `userId` del token
-- Si "Usuario no autenticado": token no sincronizado en AuthContext, o `getAuthToken()` se llamó antes de que la sesión estuviera lista → el retry loop de 3 intentos lo maneja, pero si falla los 3 usa ANON_KEY
-- Campos NO editables por diseño: `fechaInicio` y `GPXPath` (hay que eliminar y crear nueva excursión)
+**Notificaciones — helper copiado**:
+- La función `notify()` está copiada en cada Edge Function que la necesita.
+- No es posible importar módulos compartidos desde el dashboard de Supabase.
+- Si se modifica la lógica de notificación, hay que actualizarla en cada función.
+
+**mark-notifications-read — comportamiento**:
+- Sin `id`: marca todas las no leídas del usuario como leídas.
+- Con `id`: marca solo esa notificación como leída.
+- El frontend solo llama con `id` (al pulsar una notificación) o sin él (marcar todas).

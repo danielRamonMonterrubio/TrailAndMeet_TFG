@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -16,7 +24,6 @@ export async function handler(req: Request): Promise<Response> {
     console.log('🗑️ delete-excursion llamado con body:', JSON.stringify(body))
 
     if (!excursionId) {
-      console.log('❌ excursionId faltante')
       return new Response(
         JSON.stringify({ error: 'excursionId requerido' }),
         { status: 400, headers: corsHeaders }
@@ -24,7 +31,6 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const authHeader = req.headers.get('Authorization')
-    console.log('🔑 Authorization header presente:', !!authHeader)
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Authorization requerido' }),
@@ -34,7 +40,6 @@ export async function handler(req: Request): Promise<Response> {
 
     const token = authHeader.replace('Bearer ', '')
 
-    // authClient valida el token del usuario
     const authClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -44,7 +49,6 @@ export async function handler(req: Request): Promise<Response> {
       }
     )
 
-    // supabase con SERVICE_ROLE_KEY sin Authorization — bypassa RLS para operar
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -52,8 +56,6 @@ export async function handler(req: Request): Promise<Response> {
     )
 
     const { data: { user }, error: userError } = await authClient.auth.getUser(token)
-    console.log('👤 Usuario obtenido:', user?.id, '| Error auth:', userError?.message)
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Usuario no autenticado' }),
@@ -63,11 +65,9 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, creadoPor, GPXPath')
+      .select('id, creadoPor, GPXPath, titulo')
       .eq('id', excursionId)
       .single()
-
-    console.log('🏔️ Excursión encontrada:', JSON.stringify(excursion), '| Error:', excursionError?.message)
 
     if (excursionError || !excursion) {
       return new Response(
@@ -76,8 +76,6 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    console.log('🔍 Comparando creadoPor:', excursion.creadoPor, 'con userId:', user.id, '| Coincide:', excursion.creadoPor === user.id)
-
     if (excursion.creadoPor !== user.id) {
       return new Response(
         JSON.stringify({ error: 'Solo el organizador puede eliminar la excursión' }),
@@ -85,37 +83,39 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Borrar GPX de Storage si existe (no bloqueante: log error y continuar)
+    // Obtener participantes aceptados antes de borrar (para notificarles)
+    const { data: participantes } = await supabase
+      .from('participacion')
+      .select('usuarioId')
+      .eq('excursionId', excursionId)
+      .eq('status', 'accepted')
+      .neq('usuarioId', user.id)
+
     if (excursion.GPXPath) {
-      // Soporta tanto path relativo como URL pública completa
       let storagePath = excursion.GPXPath
       if (storagePath.startsWith('http')) {
         const marker = '/gpx-files/'
         const idx = storagePath.indexOf(marker)
         storagePath = idx !== -1 ? storagePath.substring(idx + marker.length) : storagePath
       }
-      console.log('🗺️ Borrando GPX de Storage - raw:', excursion.GPXPath, '| path usado:', storagePath)
-      const { data: removeData, error: storageError } = await supabase.storage
-        .from('gpx-files')
-        .remove([storagePath])
-      console.log('🗺️ Storage delete resultado - data:', JSON.stringify(removeData), '| error:', storageError?.message ?? 'OK')
+      await supabase.storage.from('gpx-files').remove([storagePath])
     }
 
-    // Borrar excursión (cascada se encarga de participacion)
-    console.log('💥 Ejecutando DELETE en excursion id:', excursionId, 'tipo:', typeof excursionId)
     const { error: deleteError, count } = await supabase
       .from('excursion')
       .delete({ count: 'exact' })
       .eq('id', excursionId)
 
-    console.log('💥 DELETE resultado - filas afectadas:', count, '| error:', deleteError?.message ?? 'ninguno')
-
     if (deleteError) {
-      console.error('Error borrando excursión:', deleteError)
       return new Response(
         JSON.stringify({ error: deleteError.message }),
         { status: 500, headers: corsHeaders }
       )
+    }
+
+    if (participantes && participantes.length > 0) {
+      const ids = participantes.map((p: { usuarioId: string }) => p.usuarioId)
+      notify(ids, 'Excursión cancelada', `La excursión "${excursion.titulo}" ha sido cancelada`, 'excursion_deleted', {})
     }
 
     return new Response(

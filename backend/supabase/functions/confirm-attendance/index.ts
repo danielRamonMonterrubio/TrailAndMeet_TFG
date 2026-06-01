@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -45,13 +53,10 @@ export async function handler(req: Request): Promise<Response> {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
     const { data: { user }, error: userError } = await authClient.auth.getUser(token)
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Usuario no autenticado' }),
@@ -59,10 +64,9 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Cargar excursión para validar ventana temporal
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, fechaInicio, status')
+      .select('id, creadoPor, fechaInicio, status, titulo')
       .eq('id', excursionId)
       .single()
 
@@ -97,7 +101,6 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar que el usuario está aceptado
     const { data: participacion, error: partError } = await supabase
       .from('participacion')
       .select('excursionId, usuarioId, status, attendance_confirmed_at')
@@ -106,7 +109,6 @@ export async function handler(req: Request): Promise<Response> {
       .maybeSingle()
 
     if (partError) {
-      console.error('Error consultando participación:', partError)
       return new Response(
         JSON.stringify({ error: partError.message }),
         { status: 500, headers: corsHeaders }
@@ -134,12 +136,20 @@ export async function handler(req: Request): Promise<Response> {
       .eq('usuarioId', user.id)
 
     if (updateError) {
-      console.error('Error confirmando asistencia:', updateError)
       return new Response(
         JSON.stringify({ error: updateError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
+
+    const { data: confirmante } = await supabase
+      .from('usuario')
+      .select('nombreUsuario')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const nombre = confirmante?.nombreUsuario ?? 'Un participante'
+    notify([excursion.creadoPor], 'Asistencia confirmada', `${nombre} confirmó asistencia a "${excursion.titulo}"`, 'attendance_confirmed', { excursionId: String(excursionId) })
 
     return new Response(
       JSON.stringify({ success: true }),

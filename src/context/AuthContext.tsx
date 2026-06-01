@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../services/supabaseClient";
+import { registerPushToken } from "../services/notificationService";
 
 type AuthContextType = {
   session: Session | null;
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             setSessionState(parsedSession);
             console.log('✅ Sesión restaurada desde AsyncStorage y sincronizada con Supabase');
+            registerPushToken();
           }
         }
       } catch (error) {

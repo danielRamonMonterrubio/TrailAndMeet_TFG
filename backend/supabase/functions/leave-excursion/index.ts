@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -42,13 +50,10 @@ export async function handler(req: Request): Promise<Response> {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
     const { data: { user }, error: userError } = await authClient.auth.getUser(token)
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Usuario no autenticado' }),
@@ -56,10 +61,9 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Validar ventana: hasta 1h antes del inicio
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, fechaInicio, status')
+      .select('id, creadoPor, fechaInicio, status, titulo')
       .eq('id', excursionId)
       .single()
 
@@ -86,7 +90,6 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Solo abandonar si estaba aceptado. Para cancelar pending usar cancel-join-request.
     const { data: deleted, error: deleteError } = await supabase
       .from('participacion')
       .delete()
@@ -96,7 +99,6 @@ export async function handler(req: Request): Promise<Response> {
       .select('excursionId')
 
     if (deleteError) {
-      console.error('Error borrando participación:', deleteError)
       return new Response(
         JSON.stringify({ error: deleteError.message }),
         { status: 500, headers: corsHeaders }
@@ -110,6 +112,15 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
+    const { data: saliente } = await supabase
+      .from('usuario')
+      .select('nombreUsuario')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const nombre = saliente?.nombreUsuario ?? 'Un participante'
+    notify([excursion.creadoPor], 'Participante se ha ido', `${nombre} ha abandonado "${excursion.titulo}"`, 'left_excursion', { excursionId: String(excursionId) })
+
     return new Response(
       JSON.stringify({ success: true }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -117,9 +128,7 @@ export async function handler(req: Request): Promise<Response> {
   } catch (error) {
     console.error('Error en leave-excursion:', error)
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Error no identificado',
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Error no identificado' }),
       { status: 500, headers: corsHeaders }
     )
   }

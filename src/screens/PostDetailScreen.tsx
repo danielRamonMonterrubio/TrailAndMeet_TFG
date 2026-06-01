@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useContext } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   Image, Alert, ActivityIndicator, TextInput, KeyboardAvoidingView,
@@ -9,6 +9,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { RootStackParamList } from '../navigation/AppNavigation';
 import { forumService, Post, Comment } from '../services/forumService';
+import { AuthContext } from '../context/AuthContext';
 import { shared } from '../theme/styles';
 import { colors } from '../theme/colors';
 
@@ -19,6 +20,8 @@ const PostDetailScreen = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { postId, postTitulo, foroId } = route.params;
+  const { session } = useContext(AuthContext);
+  const myUserId = session?.user?.id ?? '';
 
   const [post, setPost] = useState<(Post & { isModerador: boolean }) | null>(null);
   const [comentarios, setComentarios] = useState<Comment[]>([]);
@@ -27,6 +30,7 @@ const PostDetailScreen = () => {
   const [enviando, setEnviando] = useState(false);
   const [eliminandoPost, setEliminandoPost] = useState(false);
   const [eliminandoComentario, setEliminandoComentario] = useState<number | null>(null);
+  const [myUsername, setMyUsername] = useState<string>('');
   const flatListRef = useRef<FlatList>(null);
 
   const cargar = useCallback(async () => {
@@ -34,6 +38,10 @@ const PostDetailScreen = () => {
       const data = await forumService.getPostDetail(postId);
       setPost(data.post);
       setComentarios(data.comentarios);
+      // Extraer el username del usuario logueado de los comentarios o del post
+      const miComent = data.comentarios.find((c: Comment) => c.usuarioId === myUserId);
+      if (miComent?.usuario?.nombreUsuario) setMyUsername(miComent.usuario.nombreUsuario);
+      else if (data.post.usuarioId === myUserId && data.post.usuario?.nombreUsuario) setMyUsername(data.post.usuario.nombreUsuario);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -48,7 +56,13 @@ const PostDetailScreen = () => {
     setEnviando(true);
     try {
       const nuevo = await forumService.createComment(postId, comentario.trim());
-      setComentarios(prev => [...prev, nuevo]);
+      setComentarios(prev => [...prev, {
+        ...nuevo,
+        usuarioId: myUserId,
+        usuario: { nombreUsuario: myUsername || 'Tú' },
+        isOwner: true,
+        isModerador: false,
+      }]);
       setComentario('');
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
@@ -127,7 +141,7 @@ const PostDetailScreen = () => {
     </View>
   );
 
-  const PostHeader = () => {
+  const postHeader = React.useMemo(() => {
     if (!post) return null;
     return (
       <View style={styles.postSection}>
@@ -155,7 +169,7 @@ const PostDetailScreen = () => {
         </View>
       </View>
     );
-  };
+  }, [post, comentarios.length, eliminandoPost]);
 
   if (loading) {
     return (
@@ -187,7 +201,7 @@ const PostDetailScreen = () => {
         data={comentarios}
         keyExtractor={item => String(item.id)}
         renderItem={renderComentario}
-        ListHeaderComponent={<PostHeader />}
+        ListHeaderComponent={postHeader}
         contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} colors={[colors.primaryGradientStart]} />}
         ListEmptyComponent={

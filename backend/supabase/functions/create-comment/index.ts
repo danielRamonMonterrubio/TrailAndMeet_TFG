@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -46,7 +54,7 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: post } = await supabase
       .from('publicacion')
-      .select('foroId')
+      .select('foroId, usuarioId, titulo')
       .eq('id', publicacionId)
       .maybeSingle()
 
@@ -67,17 +75,24 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: comentario, error: insertError } = await supabase
       .from('comentario')
-      .insert({
-        publicacionId,
-        usuarioId: user.id,
-        contenido: contenido.trim(),
-      })
+      .insert({ publicacionId, usuarioId: user.id, contenido: contenido.trim() })
       .select('id, publicacionId, usuarioId, contenido, createdAt')
       .single()
 
     if (insertError) {
-      console.error('Error creando comentario:', insertError)
       return new Response(JSON.stringify({ error: insertError.message }), { status: 500, headers: corsHeaders })
+    }
+
+    // Notificar al autor del post (si no es el mismo que comenta)
+    if (post.usuarioId !== user.id) {
+      const { data: comentarista } = await supabase
+        .from('usuario')
+        .select('nombreUsuario')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const nombre = comentarista?.nombreUsuario ?? 'Alguien'
+      notify([post.usuarioId], '💬 Nuevo comentario', `${nombre} comentó en "${post.titulo}"`, 'new_comment', { publicacionId: String(publicacionId) })
     }
 
     return new Response(

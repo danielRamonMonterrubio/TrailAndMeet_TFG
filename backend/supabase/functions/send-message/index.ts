@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -53,8 +61,6 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Verificar que el usuario es participante aceptado
-    // El organizador también está en participacion con status='accepted' desde la creación
     const { data: participacion, error: partError } = await supabase
       .from('participacion')
       .select('status')
@@ -64,7 +70,6 @@ export async function handler(req: Request): Promise<Response> {
       .maybeSingle()
 
     if (partError) {
-      console.error('Error comprobando participación:', partError)
       return new Response(
         JSON.stringify({ error: 'Error verificando participación' }),
         { status: 500, headers: corsHeaders }
@@ -78,10 +83,9 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Verificar que la excursión no está finalizada
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, status')
+      .select('id, status, titulo')
       .eq('id', excursionId)
       .maybeSingle()
 
@@ -101,20 +105,36 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: mensaje, error: insertError } = await supabase
       .from('mensaje')
-      .insert({
-        excursionId: excursionId,
-        usuarioId: user.id,
-        contenido: contenido.trim(),
-      })
+      .insert({ excursionId, usuarioId: user.id, contenido: contenido.trim() })
       .select('id, excursionId, usuarioId, contenido, createdAt')
       .single()
 
     if (insertError) {
-      console.error('Error insertando mensaje:', insertError)
       return new Response(
         JSON.stringify({ error: insertError.message }),
         { status: 500, headers: corsHeaders }
       )
+    }
+
+    // Notificar al resto de participantes (no al emisor)
+    const { data: otrosParticipantes } = await supabase
+      .from('participacion')
+      .select('usuarioId')
+      .eq('excursionId', excursionId)
+      .eq('status', 'accepted')
+      .neq('usuarioId', user.id)
+
+    if (otrosParticipantes && otrosParticipantes.length > 0) {
+      const { data: remitente } = await supabase
+        .from('usuario')
+        .select('nombreUsuario')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const nombre = remitente?.nombreUsuario ?? 'Alguien'
+      const preview = contenido.length > 50 ? contenido.substring(0, 50) + '…' : contenido
+      const ids = otrosParticipantes.map((p: { usuarioId: string }) => p.usuarioId)
+      notify(ids, `${excursion.titulo}`, `${nombre}: ${preview}`, 'new_message', { excursionId: String(excursionId) })
     }
 
     return new Response(

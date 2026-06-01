@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0'
 
+function notify(userIds: string[], titulo: string, cuerpo: string, tipo: string, data?: Record<string, string>) {
+  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+    body: JSON.stringify({ userIds, titulo, cuerpo, tipo, data }),
+  }).catch(err => console.error('Error notificando:', err))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -42,13 +50,10 @@ export async function handler(req: Request): Promise<Response> {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-      }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
     const { data: { user }, error: userError } = await authClient.auth.getUser(token)
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Usuario no autenticado' }),
@@ -58,7 +63,7 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: excursion, error: excursionError } = await supabase
       .from('excursion')
-      .select('id, creadoPor, fechaInicio, status')
+      .select('id, creadoPor, fechaInicio, status, titulo')
       .eq('id', excursionId)
       .single()
 
@@ -91,7 +96,14 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // Borrar pendientes
+    // Obtener participantes aceptados (excepto organizador) antes de borrar pendientes
+    const { data: participantes } = await supabase
+      .from('participacion')
+      .select('usuarioId')
+      .eq('excursionId', excursionId)
+      .eq('status', 'accepted')
+      .neq('usuarioId', user.id)
+
     const { error: deletePendingError } = await supabase
       .from('participacion')
       .delete()
@@ -99,25 +111,27 @@ export async function handler(req: Request): Promise<Response> {
       .eq('status', 'pending')
 
     if (deletePendingError) {
-      console.error('Error borrando pendientes:', deletePendingError)
       return new Response(
         JSON.stringify({ error: deletePendingError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    // Marcar finished
     const { error: updateError } = await supabase
       .from('excursion')
       .update({ status: 'finished' })
       .eq('id', excursionId)
 
     if (updateError) {
-      console.error('Error actualizando estado:', updateError)
       return new Response(
         JSON.stringify({ error: updateError.message }),
         { status: 500, headers: corsHeaders }
       )
+    }
+
+    if (participantes && participantes.length > 0) {
+      const ids = participantes.map((p: { usuarioId: string }) => p.usuarioId)
+      notify(ids, 'Excursión finalizada', `La excursión "${excursion.titulo}" ha finalizado`, 'excursion_finished', { excursionId: String(excursionId) })
     }
 
     return new Response(

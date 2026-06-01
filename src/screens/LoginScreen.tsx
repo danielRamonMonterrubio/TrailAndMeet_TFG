@@ -18,6 +18,7 @@ import { shared } from "../theme/styles";
 import { RootStackParamList } from "../navigation/AppNavigation";
 import { login } from "../services/authService";
 import { AuthContext } from "../context/AuthContext";
+import { registerPushToken } from "../services/notificationService";
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Login">;
@@ -43,6 +44,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       if (data.session) {
         setSession(data.session);
+        registerPushToken();
       }
 
       navigation.reset({

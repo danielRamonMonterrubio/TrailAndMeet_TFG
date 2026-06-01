@@ -1,5 +1,5 @@
-import React, { useContext } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useContext, useEffect } from "react";
+import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
@@ -25,6 +25,7 @@ import EditProfileScreen from "../screens/EditProfileScreen";
 import UserProfileScreen from "../screens/UserProfileScreen";
 import UserSearchScreen from "../screens/UserSearchScreen";
 import ExploreForumsScreen from "../screens/ExploreForumsScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 import CreateForumScreen from "../screens/CreateForumScreen";
 import ForumDetailScreen from "../screens/ForumDetailScreen";
 import ForumMembersScreen from "../screens/ForumMembersScreen";
@@ -33,6 +34,8 @@ import PostDetailScreen from "../screens/PostDetailScreen";
 
 import { AuthContext } from "../context/AuthContext";
 import { ChatUnreadContext } from "../context/ChatUnreadContext";
+import { NotificationContext } from "../context/NotificationContext";
+import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
 
 export type RootStackParamList = {
@@ -61,6 +64,7 @@ export type RootStackParamList = {
   ForumMembers: { foroId: number; foroTitulo: string };
   CreatePost: { foroId: number; foroTitulo: string };
   PostDetail: { postId: number; postTitulo: string; foroId: number };
+  Notifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -91,6 +95,7 @@ const ExcursionListStack = () => (
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
@@ -103,11 +108,16 @@ const MyExcursionsStack = () => (
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
-const ComunidadTopTabs = () => (
-  <ComunidadTopTab.Navigator
+const ComunidadTopTabs = () => {
+  const navigation = useNavigation<any>();
+  return (
+  <View style={{ flex: 1 }}>
+    <BrandHeader onNotifications={() => navigation.navigate('Notifications')} />
+    <ComunidadTopTab.Navigator
     screenOptions={{
       tabBarActiveTintColor: colors.primaryGradientStart,
       tabBarInactiveTintColor: colors.textMuted,
@@ -116,14 +126,17 @@ const ComunidadTopTabs = () => (
       tabBarLabelStyle: { fontWeight: '600', fontSize: 14 },
     }}
   >
-    <ComunidadTopTab.Screen name="MyForums" component={MyForumsScreen} options={{ title: 'Foros' }} />
-    <ComunidadTopTab.Screen name="MyChats" component={MyChatsScreen} options={{ title: 'Chats' }} />
-  </ComunidadTopTab.Navigator>
-);
+      <ComunidadTopTab.Screen name="MyForums" component={MyForumsScreen} options={{ title: 'Foros' }} />
+      <ComunidadTopTab.Screen name="MyChats" component={MyChatsScreen} options={{ title: 'Chats' }} />
+    </ComunidadTopTab.Navigator>
+  </View>
+  );
+};
 
 const ComunidadStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Comunidad" component={ComunidadTopTabs} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="ExploreForums" component={ExploreForumsScreen} />
     <Stack.Screen name="CreateForum" component={CreateForumScreen} />
@@ -145,6 +158,13 @@ const ProfileStack = () => (
 
 const AppStack = () => {
   const { totalUnread } = useContext(ChatUnreadContext);
+  const { setUnreadCount } = useContext(NotificationContext);
+
+  useEffect(() => {
+    import('../services/notificationService').then(({ getNotifications }) => {
+      getNotifications().then(({ unreadCount }) => setUnreadCount(unreadCount)).catch(() => {});
+    });
+  }, [setUnreadCount]);
 
   return (
     <Tab.Navigator
