@@ -80,8 +80,33 @@ export async function handler(req: Request): Promise<Response> {
       excursionesActivas = data ?? []
     }
 
+    // Valoraciones recibidas (anónimas: solo medias y total)
+    const { data: valoracionesData } = await supabase
+      .from('valoracion')
+      .select('puntualidad, seguridad, trato, preparacion')
+      .eq('evaluado_id', userId)
+
+    let valoraciones = null
+    if (valoracionesData && valoracionesData.length > 0) {
+      const total = valoracionesData.length
+      const avg = (campo: 'puntualidad' | 'seguridad' | 'trato' | 'preparacion') =>
+        Math.round((valoracionesData.reduce((s: number, v: any) => s + v[campo], 0) / total) * 10) / 10
+      const p = avg('puntualidad')
+      const s = avg('seguridad')
+      const t = avg('trato')
+      const pr = avg('preparacion')
+      valoraciones = {
+        total,
+        puntualidad: p,
+        seguridad: s,
+        trato: t,
+        preparacion: pr,
+        mediaGlobal: Math.round(((p + s + t + pr) / 4) * 10) / 10,
+      }
+    }
+
     return new Response(
-      JSON.stringify({ profile, excursionesAsistidas, excursionesActivas }),
+      JSON.stringify({ profile, excursionesAsistidas, excursionesActivas, valoraciones }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {

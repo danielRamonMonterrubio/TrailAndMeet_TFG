@@ -27,6 +27,8 @@ src/
     CreateExcursionScreen  -> Crea excursión + sube GPX. Redirige a ExcursionList tras éxito.
     ExcursionDetailScreen  -> Detalle + mapa. OrganizerActions vs ParticipantActions según isOrganizer.
                              Botón "Chat del grupo" visible para isOrganizer y myParticipationStatus==='accepted'.
+                             Botón "⭐ Valorar participantes" visible cuando status==='finished' y (isOrganizer OR attendanceConfirmed).
+                             Navega a RateParticipantsScreen con { excursionId, excursionTitle }.
     EditExcursionScreen    -> Editar campos de excursión (solo organizador, solo antes de la fecha).
     PendingRequestsScreen  -> Lista solicitudes pendientes; organizador acepta/rechaza.
     ExcursionParticipantsScreen -> Lista participantes aceptados; badge Dueño/Confirmado/Aceptado.
@@ -74,10 +76,18 @@ src/
                              Solicitudes: botones aceptar (✓) y rechazar (✗) por solicitud.
                              useFocusEffect recarga y actualiza FriendRequestContext.pendingCount.
                              Búsqueda: mínimo 2 caracteres; resultados navegan a UserProfileScreen.
-    UserProfileScreen      -> (MODIFICADO) Botón de amistad dinámico justo bajo el avatar:
+    UserProfileScreen      -> Botón de amistad dinámico justo bajo el avatar:
                              none → "Añadir amigo"; pending_sent → "Solicitud enviada" (deshabilitado);
                              pending_received → "Aceptar" + "Rechazar"; accepted → "Amigos · Eliminar".
                              Carga estado vía get-friendship-status al montar. Acciones via friendService.
+                             Sección "Valoraciones" al final: muestra mediaGlobal + desglose por categoría o
+                             "Sin valoraciones" si total=0. Datos vienen de get-user-profile (valoraciones anónimas).
+    RateParticipantsScreen -> Lista de participantes valorables de una excursión finalizada.
+                             Participantes con attendance_confirmed (+ organizador siempre), excluyendo al usuario actual.
+                             Botón "Valorar" por cada uno → modal bottom-sheet con 4 StarRow (1-5 estrellas):
+                             puntualidad, seguridad, trato, preparación.
+                             Ya valorados aparecen con check y bloqueados. Optimistic update local al enviar.
+                             Params: { excursionId, excursionTitle }.
   components/
     buttons/               -> AuthButton, PrimaryButton
     cards/                 -> ExcursionCard, FeatureItem
@@ -130,6 +140,13 @@ src/
                              Mismo patrón getAuthToken() con 3 reintentos.
     profileService.ts      -> searchUsers(query) excluye al usuario actual en el backend (.neq('id', user.id)).
                              Retorna UserSearchResult[] con datos ligeros (sin excursiones). Mínimo 2 chars.
+                             getUserProfile(userId) → UserProfileData { profile, excursionesAsistidas, excursionesActivas, valoraciones }.
+                             getOwnProfile() usa la misma edge function con el userId propio → devuelve UserProfileData.
+                             Interfaces: Valoraciones { total, mediaGlobal, puntualidad, seguridad, trato, preparacion }.
+    ratingService.ts       -> getExcursionRatings(excursionId) → ParticipanteValorable[].
+                             rateParticipant(excursionId, evaluadoId, RatingValues) → void.
+                             Interface: ParticipanteValorable { usuarioId, nombreUsuario, nombre, apellido, fotoUrl, esOrganizador, yaValorado }.
+                             Interface: RatingValues { puntualidad, seguridad, trato, preparacion } (1-5).
     mappers/excursionMapper.ts
   models/Excursion.ts      -> Tipos ExcursionDifficulty, ExcursionType, interfaz Excursion
   types/
@@ -177,6 +194,7 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **PostDetailScreen** | `src/screens/PostDetailScreen.tsx` | Post + comentarios ASC + input comentario. Params: `{ postId, postTitulo, foroId }`. |
 | **NotificationsScreen** | `src/screens/NotificationsScreen.tsx` | Lista de notificaciones. Pulsar abre modal detalle y marca como leída. Botón marcar todo leído. |
 | **FriendsScreen** | `src/screens/FriendsScreen.tsx` | Tab "Amigos". Buscador + sub-tabs Mis amigos / Solicitudes (con badge). Params: ninguno. |
+| **RateParticipantsScreen** | `src/screens/RateParticipantsScreen.tsx` | Valorar participantes de una excursión finalizada. Modal de estrellas por participante. Params: `{ excursionId, excursionTitle }`. |
 
 ## Rutas Backend (Edge Functions)
 
@@ -256,6 +274,13 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **remove-friend** | Eliminar amistad (DELETE en ambas direcciones). Dual-client. |
 | **get-friendship-status** | Estado entre usuario actual y otro: none/pending_sent/pending_received/accepted. Dual-client. |
 
+### Valoraciones
+| Función | Descripción |
+|---------|-------------|
+| **rate-participant** | Enviar valoración (1-5) en 4 categorías. Valida excursión 'finished', evaluador y evaluado con attendance_confirmed (o ser el organizador). Constraint UNIQUE previene duplicados → 409. Dual-client. |
+| **get-excursion-ratings** | Participantes valorables de una excursión finalizada para el usuario actual. Incluye organizador siempre + participantes con attendance_confirmed. Devuelve flag `yaValorado`. Dual-client. |
+| **get-user-profile** | (ACTUALIZADO) Ahora incluye campo `valoraciones` con medias agregadas anónimas: `{ total, mediaGlobal, puntualidad, seguridad, trato, preparacion }` o `null`. |
+
 ### Legado
 | Función | Descripción |
 |---------|-------------|
@@ -273,7 +298,7 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 ## Convenciones de arquitectura
 
 - **Lógica de negocio en Edge Functions, no en frontend**. Los servicios del frontend son envoltorios `fetch` finos.
-- **Edge Functions se despliegan desde el dashboard de Supabase** copiando y pegando el código. No se usan localmente ni con CLI.
+- **Edge Functions se despliegan desde el dashboard de Supabase** copiando y pegando el código. No se usan localmente ni con CLI. El código fuente vive en `backend/supabase/functions/<nombre>/index.ts` — **leer uno existente antes de crear uno nuevo** para entender la estructura (helper `json()`, dual-client, CORS).
 - **Auth**: el frontend NUNCA llama directamente a `supabase.auth.signInWithPassword`. Usa `authService` → Edge Function. La sesión sí se sincroniza con `supabase.auth.setSession` para queries autenticadas a Storage/tablas.
 - **Persistencia de sesión**: AsyncStorage clave `auth_session`. `AuthContext.setSession(null)` cierra sesión.
 - **GPX**: el archivo se sube a Supabase Storage; `create-excursion-with-gpx` lo parsea en backend. Para descargarlo el frontend usa URL pública directa (`supabase.storage.from('gpx-files').getPublicUrl(path)`) en lugar de la Edge Function `download-gpx`.
@@ -306,6 +331,18 @@ npm run lint
 - **Metro se pierde al reconectar USB**: ejecutar `adb reverse tcp:8081 tcp:8081`.
 
 ## Estado actual (2026-06-02)
+
+### ✅ Sistema de valoraciones entre participantes:
+- Tabla `valoracion` (excursion_id, evaluador_id, evaluado_id, puntualidad, seguridad, trato, preparacion 1-5)
+- 2 Edge Functions: `rate-participant` (dual-client), `get-excursion-ratings` (dual-client)
+- `get-user-profile` actualizado con campo `valoraciones` agregado (anónimo)
+- `RateParticipantsScreen`: accesible desde ExcursionDetailScreen cuando status='finished' y usuario participó
+- Botón "⭐ Valorar participantes" aparece para el organizador siempre; para participantes solo si confirmaron asistencia
+- Valoraciones anónimas: el evaluado ve solo medias + total, nunca quién le valoró
+- `ValoracionesCard` compartido en ProfileScreen (perfil propio) y UserProfileScreen (perfil ajeno)
+- `ratingService.ts` con patrón getAuthToken() con 3 reintentos
+
+
 
 ### ✅ Funcionalidades completamente implementadas:
 - **Login y registro** (2 pasos)
@@ -366,6 +403,7 @@ npm run lint
 - `create-post`, `delete-post`, `create-comment`, `delete-comment`, `get-forum-members`
 - `register-push-token`, `get-notifications`, `mark-notifications-read`
 - `send-friend-request`, `respond-friend-request`, `get-friends`, `get-friend-requests`, `remove-friend`, `get-friendship-status`
+- `rate-participant`, `get-excursion-ratings`
 
 **✅ Con SERVICE_ROLE_KEY (operaciones públicas):**
 - `auth-check-email`, `auth-check-username`, `auth-login`, `auth-logout`
@@ -417,6 +455,12 @@ npm run lint
 **database.types.ts**:
 - Encoding UTF-16 LE (con BOM). Usar como referencia, no editar manualmente.
 - Para leerlo desde scripts usar `node -e "... fs.readFileSync(..., 'utf16le') ..."` o Python con `open(..., encoding='utf-16')`.
+
+**Valoraciones — organizador como participante especial**:
+- El organizador puede valorar y ser valorado aunque NO tenga `attendance_confirmed_at` (no hay UI de confirmación para él).
+- El resto de participantes necesitan `attendance_confirmed_at IS NOT NULL` en ambos roles (evaluador y evaluado).
+- Las valoraciones son completamente anónimas: `get-user-profile` devuelve solo medias agregadas, nunca ids individuales.
+- `get-user-profile` y `getOwnProfile()` usan la misma edge function — ambos devuelven `UserProfileData` con `valoraciones`.
 
 **Tabla amistad y relaciones bidireccionales**:
 - Las queries de amistad usan `.or('and(solicitante_id.eq.X,receptor_id.eq.Y),and(solicitante_id.eq.Y,receptor_id.eq.X)')`.

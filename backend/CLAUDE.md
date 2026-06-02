@@ -2,6 +2,10 @@
 
 **Nota**: Las Edge Functions NO se ejecutan localmente. Se despliegan desde el **dashboard de Supabase** copiando y pegando el código en cada función. No se usa CLI ni entorno local.
 
+## Dónde escribir las Edge Functions
+
+**IMPORTANTE**: Antes de crear una nueva Edge Function, **lee una existente** en `backend/supabase/functions/<nombre>/index.ts` para entender la estructura exacta (helper `json()`, patrón dual-client, CORS headers). Crea cada función nueva en su propia carpeta: `backend/supabase/functions/<nombre>/index.ts`.
+
 ## Stack
 - **Runtime**: Deno (TypeScript)
 - **Invocación**: `${SUPABASE_URL}/functions/v1/<function-name>`
@@ -147,6 +151,15 @@ AMIGOS
 ├─ remove-friend/                   (dual-client, DELETE en ambas direcciones con .or())
 └─ get-friendship-status/           (dual-client, devuelve none/pending_sent/pending_received/accepted + amistadId)
 
+VALORACIONES
+├─ rate-participant/                 (dual-client, 1-5 estrellas en 4 categorías)
+│                                    Valida: excursión 'finished', evaluador confirmó asistencia (o es organizador),
+│                                    evaluado confirmó asistencia (o es organizador), no duplicado.
+│                                    Constraint UNIQUE (excursion_id, evaluador_id, evaluado_id) devuelve 409.
+└─ get-excursion-ratings/            (dual-client, lista participantes valorables)
+                                     Devuelve participantes con attendance_confirmed (+ organizador siempre),
+                                     excluyendo al usuario actual, con flag yaValorado.
+
 PARSING (Legado)
 └─ parse-and-create-excursion/      (DEPRECATED - no usar)
 ```
@@ -287,6 +300,25 @@ notificacion {
   INDEX (userId, createdAt DESC)
 }
 
+valoracion {
+  id: UUID (PK, gen_random_uuid())
+  excursion_id: INTEGER (FK → excursion.id ON DELETE CASCADE)
+  evaluador_id: UUID (FK → auth.users ON DELETE CASCADE)
+  evaluado_id: UUID (FK → auth.users ON DELETE CASCADE)
+  puntualidad: SMALLINT (1-5)
+  seguridad: SMALLINT (1-5)
+  trato: SMALLINT (1-5)
+  preparacion: SMALLINT (1-5)
+  created_at: TIMESTAMPTZ DEFAULT NOW()
+  UNIQUE (excursion_id, evaluador_id, evaluado_id)
+  CHECK (evaluador_id != evaluado_id)
+  INDEX idx_valoracion_evaluado (evaluado_id)
+  INDEX idx_valoracion_excursion_evaluador (excursion_id, evaluador_id)
+  RLS habilitado (bypassado por SERVICE_ROLE_KEY)
+  NOTA: valoraciones son anónimas — el evaluado no sabe quién le valoró ni cuánto.
+        get-user-profile devuelve solo medias agregadas + total.
+}
+
 amistad {
   id: uuid (PK, gen_random_uuid())
   solicitante_id: uuid (FK → auth.users ON DELETE CASCADE)
@@ -338,6 +370,11 @@ amistad {
 - La función `notify()` está copiada en cada Edge Function que la necesita.
 - No es posible importar módulos compartidos desde el dashboard de Supabase.
 - Si se modifica la lógica de notificación, hay que actualizarla en cada función.
+
+**Valoraciones — organizador como participante**:
+- El organizador (excursion.creadoPor) puede valorar y ser valorado aunque no tenga `attendance_confirmed_at` (no existe UI de confirmación para el organizador).
+- El resto de participantes necesitan `attendance_confirmed_at IS NOT NULL` tanto para valorar como para ser valorados.
+- `get-user-profile` agrega las valoraciones recibidas y las devuelve como `{ total, mediaGlobal, puntualidad, seguridad, trato, preparacion }` o `null` si no hay ninguna.
 
 **mark-notifications-read — comportamiento**:
 - Sin `id`: marca todas las no leídas del usuario como leídas.

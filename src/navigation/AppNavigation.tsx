@@ -32,6 +32,7 @@ import ForumDetailScreen from "../screens/ForumDetailScreen";
 import ForumMembersScreen from "../screens/ForumMembersScreen";
 import CreatePostScreen from "../screens/CreatePostScreen";
 import PostDetailScreen from "../screens/PostDetailScreen";
+import RateParticipantsScreen from "../screens/RateParticipantsScreen";
 
 import { AuthContext } from "../context/AuthContext";
 import { ChatUnreadContext } from "../context/ChatUnreadContext";
@@ -68,6 +69,7 @@ export type RootStackParamList = {
   PostDetail: { postId: number; postTitulo: string; foroId: number };
   Notifications: undefined;
   Friends: undefined;
+  RateParticipants: { excursionId: string; excursionTitle: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -96,6 +98,7 @@ const ExcursionListStack = () => (
     <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="RateParticipants" component={RateParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
@@ -109,6 +112,7 @@ const MyExcursionsStack = () => (
     <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
     <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
     <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="RateParticipants" component={RateParticipantsScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />

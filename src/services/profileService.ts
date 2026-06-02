@@ -35,6 +35,15 @@ export interface Especialidad {
   nivel: string;
 }
 
+export interface Valoraciones {
+  total: number;
+  mediaGlobal: number;
+  puntualidad: number;
+  seguridad: number;
+  trato: number;
+  preparacion: number;
+}
+
 export interface UserProfile {
   id: string;
   nombreUsuario: string;
@@ -71,6 +80,7 @@ export interface UserProfileData {
   profile: UserProfile;
   excursionesAsistidas: ExcursionResumen[];
   excursionesActivas: ExcursionResumen[];
+  valoraciones: Valoraciones | null;
 }
 
 export interface UpdateProfileData {
@@ -100,11 +110,10 @@ export const profileService = {
     return callFunction('get-user-profile', { userId });
   },
 
-  async getOwnProfile(): Promise<UserProfile> {
+  async getOwnProfile(): Promise<UserProfileData> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No autenticado');
-    const data = await callFunction('get-user-profile', { userId: user.id });
-    return data.profile as UserProfile;
+    return callFunction('get-user-profile', { userId: user.id }) as Promise<UserProfileData>;
   },
 
   async updateProfile(updateData: UpdateProfileData): Promise<void> {

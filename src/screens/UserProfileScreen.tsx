@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
-import { profileService, UserProfile, ExcursionResumen, calcularEdad } from '../services/profileService';
+import { profileService, UserProfile, ExcursionResumen, Valoraciones, calcularEdad } from '../services/profileService';
 import { friendService, FriendshipStatus } from '../services/friendService';
 import { RootStackParamList } from '../navigation/AppNavigation';
 
@@ -77,6 +77,61 @@ const miniStyles = StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: '700' },
 });
 
+const VAL_LABELS: Array<{ key: 'puntualidad' | 'seguridad' | 'trato' | 'preparacion'; label: string; icon: React.ComponentProps<typeof MaterialDesignIcons>['name'] }> = [
+  { key: 'puntualidad', label: 'Puntualidad', icon: 'clock-outline' },
+  { key: 'seguridad', label: 'Seguridad', icon: 'shield-check-outline' },
+  { key: 'trato', label: 'Trato', icon: 'handshake-outline' },
+  { key: 'preparacion', label: 'Preparación', icon: 'bag-personal-outline' },
+];
+
+const StarDisplay: React.FC<{ value: number }> = ({ value }) => (
+  <View style={{ flexDirection: 'row', gap: 2 }}>
+    {[1, 2, 3, 4, 5].map(n => (
+      <MaterialDesignIcons
+        key={n}
+        name={n <= Math.round(value) ? 'star' : 'star-outline'}
+        size={14}
+        color={n <= Math.round(value) ? '#F59E0B' : colors.grayLight}
+      />
+    ))}
+  </View>
+);
+
+const ValoracionesCard: React.FC<{ valoraciones: Valoraciones | null }> = ({ valoraciones }) => (
+  <View style={shared.card}>
+    <Text style={valStyles.sectionLabel}>Valoraciones</Text>
+    {valoraciones ? (
+      <>
+        <View style={valStyles.globalRow}>
+          <View style={valStyles.globalScore}>
+            <Text style={valStyles.globalNum}>{valoraciones.mediaGlobal.toFixed(1)}</Text>
+            <MaterialDesignIcons name="star" size={22} color="#F59E0B" />
+          </View>
+          <Text style={valStyles.totalText}>{valoraciones.total} valoración{valoraciones.total !== 1 ? 'es' : ''}</Text>
+        </View>
+        <View style={valStyles.divider} />
+        {VAL_LABELS.map(({ key, label, icon }) => (
+          <View key={key} style={valStyles.detailRow}>
+            <View style={valStyles.detailLeft}>
+              <MaterialDesignIcons name={icon} size={15} color={colors.primaryGradientStart} />
+              <Text style={valStyles.detailLabel}>{label}</Text>
+            </View>
+            <View style={valStyles.detailRight}>
+              <StarDisplay value={valoraciones[key]} />
+              <Text style={valStyles.detailNum}>{valoraciones[key].toFixed(1)}</Text>
+            </View>
+          </View>
+        ))}
+      </>
+    ) : (
+      <View style={valStyles.emptyRow}>
+        <MaterialDesignIcons name="star-off-outline" size={20} color={colors.textMuted} />
+        <Text style={valStyles.emptyText}>Sin valoraciones todavía</Text>
+      </View>
+    )}
+  </View>
+);
+
 const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
   const route = useRoute();
   const { userId, username } = route.params as RouteParams;
@@ -84,6 +139,7 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [asistidas, setAsistidas] = useState<ExcursionResumen[]>([]);
   const [activas, setActivas] = useState<ExcursionResumen[]>([]);
+  const [valoraciones, setValoraciones] = useState<Valoraciones | null>(null);
   const [loading, setLoading] = useState(true);
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
   const [amistadId, setAmistadId] = useState<string | undefined>(undefined);
@@ -101,6 +157,7 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
       setProfile(data.profile);
       setAsistidas(data.excursionesAsistidas);
       setActivas(data.excursionesActivas);
+      setValoraciones(data.valoraciones ?? null);
     } catch (err) {
       console.error('Error cargando perfil de usuario:', err);
     } finally {
@@ -324,19 +381,8 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
 
-          {/* ── Valoraciones (al final) ── */}
-          <View style={[shared.card, styles.proximamenteCard]}>
-            <View style={styles.proximamenteHeader}>
-              <MaterialDesignIcons name="star-outline" size={20} color={colors.textMuted} />
-              <Text style={styles.sectionLabel}>Valoraciones</Text>
-              <View style={styles.proximamenteBadge}>
-                <Text style={styles.proximamenteTag}>Próximamente</Text>
-              </View>
-            </View>
-            <Text style={styles.proximamenteDesc}>
-              Pronto podrás ver las valoraciones de este usuario
-            </Text>
-          </View>
+          {/* ── Valoraciones ── */}
+          <ValoracionesCard valoraciones={valoraciones} />
 
         </ScrollView>
       )}
@@ -412,19 +458,6 @@ const styles = StyleSheet.create({
   emptyRowText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
   emptyExcCard: { alignItems: 'center', gap: 10, paddingVertical: 24 },
   emptyExcText: { fontSize: 14, color: colors.textMuted },
-  proximamenteCard: { gap: 10 },
-  proximamenteHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  proximamenteBadge: {
-    backgroundColor: colors.backgroundSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primaryGradientStart,
-    marginLeft: 'auto',
-  },
-  proximamenteTag: { fontSize: 11, fontWeight: '700', color: colors.primaryGradientStart },
-  proximamenteDesc: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
   friendBtnContainer: { paddingHorizontal: 16 },
   friendBtnRow: { flexDirection: 'row', gap: 10 },
   friendBtnPrimary: {
@@ -464,4 +497,27 @@ const styles = StyleSheet.create({
     borderColor: colors.grayLight,
   },
   friendBtnDisabledText: { color: colors.textMuted, fontWeight: '600', fontSize: 15 },
+});
+
+const valStyles = StyleSheet.create({
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  globalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  globalScore: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  globalNum: { fontSize: 28, fontWeight: '800', color: colors.textPrimary },
+  totalText: { fontSize: 13, color: colors.textMuted },
+  divider: { height: 1, backgroundColor: colors.grayLight, marginVertical: 10 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  detailLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  detailRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailNum: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, minWidth: 28, textAlign: 'right' },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emptyText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
 });

@@ -14,7 +14,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
-import { profileService, UserProfile, calcularEdad } from '../services/profileService';
+import { profileService, UserProfile, Valoraciones, UserProfileData, calcularEdad } from '../services/profileService';
 import { RootStackParamList } from '../navigation/AppNavigation';
 
 type Props = {
@@ -33,8 +33,64 @@ const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
   Dificil: { bg: colors.hardBg, text: colors.hardText },
 };
 
+const VAL_LABELS: Array<{ key: 'puntualidad' | 'seguridad' | 'trato' | 'preparacion'; label: string; icon: React.ComponentProps<typeof MaterialDesignIcons>['name'] }> = [
+  { key: 'puntualidad', label: 'Puntualidad', icon: 'clock-outline' },
+  { key: 'seguridad', label: 'Seguridad', icon: 'shield-check-outline' },
+  { key: 'trato', label: 'Trato', icon: 'handshake-outline' },
+  { key: 'preparacion', label: 'Preparación', icon: 'bag-personal-outline' },
+];
+
+const StarDisplay: React.FC<{ value: number }> = ({ value }) => (
+  <View style={{ flexDirection: 'row', gap: 2 }}>
+    {[1, 2, 3, 4, 5].map(n => (
+      <MaterialDesignIcons
+        key={n}
+        name={n <= Math.round(value) ? 'star' : 'star-outline'}
+        size={14}
+        color={n <= Math.round(value) ? '#F59E0B' : colors.grayLight}
+      />
+    ))}
+  </View>
+);
+
+const ValoracionesCard: React.FC<{ valoraciones: Valoraciones | null }> = ({ valoraciones }) => (
+  <View style={shared.card}>
+    <Text style={valStyles.sectionLabel}>Valoraciones</Text>
+    {valoraciones ? (
+      <>
+        <View style={valStyles.globalRow}>
+          <View style={valStyles.globalScore}>
+            <Text style={valStyles.globalNum}>{valoraciones.mediaGlobal.toFixed(1)}</Text>
+            <MaterialDesignIcons name="star" size={22} color="#F59E0B" />
+          </View>
+          <Text style={valStyles.totalText}>{valoraciones.total} valoración{valoraciones.total !== 1 ? 'es' : ''}</Text>
+        </View>
+        <View style={valStyles.divider} />
+        {VAL_LABELS.map(({ key, label, icon }) => (
+          <View key={key} style={valStyles.detailRow}>
+            <View style={valStyles.detailLeft}>
+              <MaterialDesignIcons name={icon} size={15} color={colors.primaryGradientStart} />
+              <Text style={valStyles.detailLabel}>{label}</Text>
+            </View>
+            <View style={valStyles.detailRight}>
+              <StarDisplay value={valoraciones[key]} />
+              <Text style={valStyles.detailNum}>{valoraciones[key].toFixed(1)}</Text>
+            </View>
+          </View>
+        ))}
+      </>
+    ) : (
+      <View style={valStyles.emptyRow}>
+        <MaterialDesignIcons name="star-off-outline" size={20} color={colors.textMuted} />
+        <Text style={valStyles.emptyText}>Sin valoraciones todavía</Text>
+      </View>
+    )}
+  </View>
+);
+
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [valoraciones, setValoraciones] = useState<Valoraciones | null>(null);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -47,7 +103,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     setLoading(true);
     try {
       const data = await profileService.getOwnProfile();
-      setProfile(data);
+      setProfile(data.profile);
+      setValoraciones(data.valoraciones ?? null);
     } catch (err) {
       console.error('Error cargando perfil propio:', err);
     } finally {
@@ -173,19 +230,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.outlineButtonText}>Buscar usuarios</Text>
         </TouchableOpacity>
 
-        {/* ── Valoraciones (al final) ── */}
-        <View style={[shared.card, styles.proximamenteCard]}>
-          <View style={styles.proximamenteHeader}>
-            <MaterialDesignIcons name="star-outline" size={20} color={colors.textMuted} />
-            <Text style={styles.sectionLabel}>Valoraciones</Text>
-            <View style={styles.proximamenteBadge}>
-              <Text style={styles.proximamenteTag}>Próximamente</Text>
-            </View>
-          </View>
-          <Text style={styles.proximamenteDesc}>
-            Pronto podrás ver valoraciones de puntualidad, seguridad, trato y preparación
-          </Text>
-        </View>
+        {/* ── Valoraciones ── */}
+        <ValoracionesCard valoraciones={valoraciones} />
 
       </ScrollView>
     </View>
@@ -334,31 +380,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  proximamenteCard: {
-    gap: 10,
-  },
-  proximamenteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  proximamenteBadge: {
-    backgroundColor: colors.backgroundSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primaryGradientStart,
-    marginLeft: 'auto',
-  },
-  proximamenteTag: {
+});
+
+const valStyles = StyleSheet.create({
+  sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primaryGradientStart,
-  },
-  proximamenteDesc: {
-    fontSize: 13,
     color: colors.textMuted,
-    lineHeight: 19,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
   },
+  globalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  globalScore: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  globalNum: { fontSize: 28, fontWeight: '800', color: colors.textPrimary },
+  totalText: { fontSize: 13, color: colors.textMuted },
+  divider: { height: 1, backgroundColor: colors.grayLight, marginVertical: 10 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  detailLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailLabel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  detailRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailNum: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, minWidth: 28, textAlign: 'right' },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emptyText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
 });

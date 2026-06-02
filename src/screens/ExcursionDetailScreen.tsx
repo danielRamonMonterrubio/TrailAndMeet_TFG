@@ -403,6 +403,7 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
                 onPendingRequests={() => navigation.navigate('PendingRequests', { excursionId: excursion.id, excursionTitle: excursion.title })}
                 onParticipants={() => navigation.navigate('ExcursionParticipants', { excursionId: excursion.id, excursionTitle: excursion.title, organizerId: excursion.organizerId })}
                 onChat={() => navigation.navigate('Chat', { excursionId: excursion.id, excursionTitle: excursion.title, excursionStatus: excursion.status })}
+                onRateParticipants={() => navigation.navigate('RateParticipants', { excursionId: excursion.id, excursionTitle: excursion.title })}
               />
             ) : (
               <ParticipantActions
@@ -416,6 +417,7 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
                 onConfirmAttendance={handleConfirmAttendance}
                 onParticipants={() => navigation.navigate('ExcursionParticipants', { excursionId: excursion.id, excursionTitle: excursion.title, organizerId: excursion.organizerId })}
                 onChat={() => navigation.navigate('Chat', { excursionId: excursion.id, excursionTitle: excursion.title, excursionStatus: excursion.status })}
+                onRateParticipants={() => navigation.navigate('RateParticipants', { excursionId: excursion.id, excursionTitle: excursion.title })}
               />
             )}
           </View>
@@ -436,10 +438,11 @@ interface OrganizerActionsProps {
   onPendingRequests: () => void;
   onParticipants: () => void;
   onChat: () => void;
+  onRateParticipants: () => void;
 }
 
 const OrganizerActions: React.FC<OrganizerActionsProps> = ({
-  excursion, canFinish, disabled, onFinish, onEdit, onDelete, onPendingRequests, onParticipants, onChat,
+  excursion, canFinish, disabled, onFinish, onEdit, onDelete, onPendingRequests, onParticipants, onChat, onRateParticipants,
 }) => (
   <View style={styles.organizerContainer}>
     <View style={styles.organizerBadge}>
@@ -470,6 +473,12 @@ const OrganizerActions: React.FC<OrganizerActionsProps> = ({
       <PrimaryButton title="Finalizar excursión" onPress={onFinish} />
     )}
 
+    {excursion.status === 'finished' && (
+      <TouchableOpacity style={styles.secondaryButton} onPress={onRateParticipants} disabled={disabled}>
+        <Text style={styles.secondaryButtonText}>⭐ Valorar participantes</Text>
+      </TouchableOpacity>
+    )}
+
     {!canFinish && excursion.status !== 'finished' && (
       <TouchableOpacity style={styles.dangerButton} onPress={onDelete} disabled={disabled}>
         <Text style={styles.dangerButtonText}>🗑️ Eliminar excursión</Text>
@@ -490,11 +499,12 @@ interface ParticipantActionsProps {
   onConfirmAttendance: () => void;
   onParticipants: () => void;
   onChat: () => void;
+  onRateParticipants: () => void;
 }
 
 const ParticipantActions: React.FC<ParticipantActionsProps> = ({
   excursion, canLeave, inAttendanceWindow, disabled,
-  onRequestJoin, onCancelRequest, onLeave, onConfirmAttendance, onParticipants, onChat,
+  onRequestJoin, onCancelRequest, onLeave, onConfirmAttendance, onParticipants, onChat, onRateParticipants,
 }) => {
   const { myParticipationStatus, attendanceConfirmed, availableSpots, status } = excursion;
 
@@ -548,6 +558,11 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
             <View style={styles.confirmedBadge}>
               <Text style={styles.confirmedBadgeText}>✅ Asistencia confirmada</Text>
             </View>
+          )}
+          {status === 'finished' && attendanceConfirmed && (
+            <TouchableOpacity style={styles.secondaryButton} onPress={onRateParticipants} disabled={disabled}>
+              <Text style={styles.secondaryButtonText}>⭐ Valorar participantes</Text>
+            </TouchableOpacity>
           )}
         </>
       )}
