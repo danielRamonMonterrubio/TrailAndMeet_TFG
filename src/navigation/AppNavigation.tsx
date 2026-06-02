@@ -26,6 +26,7 @@ import UserProfileScreen from "../screens/UserProfileScreen";
 import UserSearchScreen from "../screens/UserSearchScreen";
 import ExploreForumsScreen from "../screens/ExploreForumsScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import FriendsScreen from "../screens/FriendsScreen";
 import CreateForumScreen from "../screens/CreateForumScreen";
 import ForumDetailScreen from "../screens/ForumDetailScreen";
 import ForumMembersScreen from "../screens/ForumMembersScreen";
@@ -35,6 +36,7 @@ import PostDetailScreen from "../screens/PostDetailScreen";
 import { AuthContext } from "../context/AuthContext";
 import { ChatUnreadContext } from "../context/ChatUnreadContext";
 import { NotificationContext } from "../context/NotificationContext";
+import { FriendRequestContext } from "../context/FriendRequestContext";
 import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
 
@@ -65,6 +67,7 @@ export type RootStackParamList = {
   CreatePost: { foroId: number; foroTitulo: string };
   PostDetail: { postId: number; postTitulo: string; foroId: number };
   Notifications: undefined;
+  Friends: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -116,7 +119,7 @@ const ComunidadTopTabs = () => {
   const navigation = useNavigation<any>();
   return (
   <View style={{ flex: 1 }}>
-    <BrandHeader onNotifications={() => navigation.navigate('Notifications')} />
+    <BrandHeader />
     <ComunidadTopTab.Navigator
     screenOptions={{
       tabBarActiveTintColor: colors.primaryGradientStart,
@@ -147,6 +150,14 @@ const ComunidadStack = () => (
   </Stack.Navigator>
 );
 
+const FriendsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Friends" component={FriendsScreen} />
+    <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
+  </Stack.Navigator>
+);
+
 const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Profile" component={ProfileScreen} />
@@ -159,12 +170,16 @@ const ProfileStack = () => (
 const AppStack = () => {
   const { totalUnread } = useContext(ChatUnreadContext);
   const { setUnreadCount } = useContext(NotificationContext);
+  const { pendingCount, setPendingCount } = useContext(FriendRequestContext);
 
   useEffect(() => {
     import('../services/notificationService').then(({ getNotifications }) => {
       getNotifications().then(({ unreadCount }) => setUnreadCount(unreadCount)).catch(() => {});
     });
-  }, [setUnreadCount]);
+    import('../services/friendService').then(({ friendService }) => {
+      friendService.getFriendRequests().then(requests => setPendingCount(requests.length)).catch(() => {});
+    });
+  }, [setUnreadCount, setPendingCount]);
 
   return (
     <Tab.Navigator
@@ -182,6 +197,7 @@ const AppStack = () => {
           if (route.name === "ExcursionList") iconName = "map";
           else if (route.name === "MyExcursions") iconName = "briefcase";
           else if (route.name === "Comunidad") iconName = "forum";
+          else if (route.name === "Friends") iconName = "account-group";
           else if (route.name === "Profile") iconName = "account";
           return <MaterialDesignIcons name={iconName} size={size} color={color} />;
         },
@@ -217,6 +233,19 @@ const AppStack = () => {
         listeners={({ navigation }) => ({
           tabPress: () => {
             navigation.navigate('Comunidad' as never, { screen: 'Comunidad' } as never);
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Friends"
+        component={FriendsStack}
+        options={{
+          title: "Amigos",
+          tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Friends' as never, { screen: 'Friends' } as never);
           },
         })}
       />

@@ -1,18 +1,26 @@
 import React, { useContext } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 
 import { colors } from "../../theme/colors";
 import { NotificationContext } from "../../context/NotificationContext";
+import { AuthContext } from "../../context/AuthContext";
+import { logout } from "../../services/authService";
 
-type Props = {
-  onLogout?: () => void;
-  onNotifications?: () => void;
-};
-
-const BrandHeader: React.FC<Props> = ({ onLogout, onNotifications }) => {
+const BrandHeader: React.FC = () => {
   const { unreadCount } = useContext(NotificationContext);
+  const { session, setSession } = useContext(AuthContext);
+  const navigation = useNavigation<any>();
+
+  const handleLogout = async () => {
+    const token = session?.access_token;
+    if (token) {
+      try { await logout(token); } catch { }
+    }
+    setSession(null);
+  };
 
   return (
     <LinearGradient
@@ -30,26 +38,20 @@ const BrandHeader: React.FC<Props> = ({ onLogout, onNotifications }) => {
         </View>
 
         <View style={styles.actions}>
-          {onNotifications && (
-            <Pressable hitSlop={10} onPress={onNotifications} style={styles.bellWrap}>
-              <MaterialDesignIcons name="bell-outline" size={26} color={colors.white} />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {unreadCount > 99 ? '99+' : String(unreadCount)}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          )}
+          <Pressable hitSlop={10} onPress={() => navigation.navigate('Notifications')} style={styles.bellWrap}>
+            <MaterialDesignIcons name="bell-outline" size={26} color={colors.white} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : String(unreadCount)}
+                </Text>
+              </View>
+            )}
+          </Pressable>
 
-          {onLogout ? (
-            <Pressable hitSlop={10} onPress={onLogout}>
-              <MaterialDesignIcons name="logout" size={26} color={colors.white} />
-            </Pressable>
-          ) : (
-            <View style={styles.iconSpacer} />
-          )}
+          <Pressable hitSlop={10} onPress={handleLogout}>
+            <MaterialDesignIcons name="logout" size={26} color={colors.white} />
+          </Pressable>
         </View>
       </View>
     </LinearGradient>
@@ -105,8 +107,5 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 10,
     fontWeight: "700",
-  },
-  iconSpacer: {
-    width: 26,
   },
 });

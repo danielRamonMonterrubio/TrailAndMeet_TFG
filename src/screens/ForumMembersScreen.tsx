@@ -64,7 +64,7 @@ const ForumMembersScreen = () => {
   };
 
   const renderMiembro = ({ item }: { item: MemberItem }) => (
-    <View style={styles.memberCard}>
+    <TouchableOpacity style={styles.memberCard} onPress={() => navigation.navigate('UserProfile', { userId: item.usuarioId, username: item.nombreUsuario })} activeOpacity={0.75}>
       <View style={styles.avatar}>
         <Text style={styles.avatarText}>{item.nombreUsuario[0]?.toUpperCase()}</Text>
       </View>
@@ -82,7 +82,7 @@ const ForumMembersScreen = () => {
       {isModerador && !item.esModerador && (
         <TouchableOpacity
           style={[styles.kickBtn, kicking === item.usuarioId && { opacity: 0.5 }]}
-          onPress={() => expulsar(item)}
+          onPress={(e) => { e.stopPropagation?.(); expulsar(item); }}
           disabled={kicking === item.usuarioId}
         >
           {kicking === item.usuarioId
@@ -91,7 +91,7 @@ const ForumMembersScreen = () => {
           }
         </TouchableOpacity>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   return (

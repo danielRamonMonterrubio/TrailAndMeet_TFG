@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,9 +19,6 @@ import BrandHeader from "../components/headers/BrandHeader";
 import { colors } from "../theme/colors";
 import { shared } from "../theme/styles";
 import { RootStackParamList } from "../navigation/AppNavigation";
-import { AuthContext } from "../context/AuthContext";
-
-import { logout } from "../services/authService";
 type Props = {
   navigation: NativeStackNavigationProp<
     RootStackParamList,
@@ -34,8 +31,6 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDifficulties, setSelectedDifficulties] = useState<ExcursionDifficulty[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<ExcursionType[]>([]);
-  const { session, setSession } = useContext(AuthContext);
-
   useEffect(() => {
     loadExcursions();
   }, []);
@@ -86,36 +81,10 @@ const ExcursionListScreen: React.FC<Props> = ({ navigation }) => {
     setShowFilters(true);
   };
 
-  const handleLogout = async () => {
-    try {
-      const token = session?.access_token;
-      
-      // Solo llamar logout al backend si hay token válido
-      if (token) {
-        try {
-          await logout(token);
-        } catch (error) {
-          // Si falla el logout en backend, igual limpiar localmente
-          console.error("Logout remoto falló:", error);
-        }
-      }
-
-      // Limpiar sesión del contexto (que también limpia AsyncStorage y Supabase)
-      setSession(null);
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Welcome" }],
-      });
-
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   return (
     <View style={shared.container}>
-      <BrandHeader onLogout={handleLogout} onNotifications={() => navigation.navigate('Notifications')} />
+      <BrandHeader />
 
       {/* CONTENT */}
       <ScrollView contentContainerStyle={styles.content}>

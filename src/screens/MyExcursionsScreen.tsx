@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,6 @@ import BrandHeader from '../components/headers/BrandHeader';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
 import { RootStackParamList } from '../navigation/AppNavigation';
-import { AuthContext } from '../context/AuthContext';
-import { logout } from '../services/authService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'MyExcursions'>;
@@ -32,8 +30,6 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<FilterType>('todas');
-  const { session, setSession } = useContext(AuthContext);
-
   useEffect(() => {
     loadExcursions();
   }, []);
@@ -96,30 +92,11 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  const handleLogout = async () => {
-    try {
-      const token = session?.access_token;
-      if (token) {
-        try {
-          await logout(token);
-        } catch (error) {
-          console.error('Logout remoto falló:', error);
-        }
-      }
-      setSession(null);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Welcome' }],
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   if (loading && excursions.length === 0) {
     return (
       <View style={shared.container}>
-        <BrandHeader onLogout={handleLogout} onNotifications={() => navigation.navigate('Notifications')} />
+        <BrandHeader />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primaryGradientStart} />
           <Text style={styles.loadingText}>Cargando excursiones...</Text>
@@ -131,7 +108,7 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
   if (error && excursions.length === 0) {
     return (
       <View style={shared.container}>
-        <BrandHeader onLogout={handleLogout} onNotifications={() => navigation.navigate('Notifications')} />
+        <BrandHeader />
         <View style={styles.centerContainer}>
           <MaterialDesignIcons name="alert-circle" size={48} color={colors.hardText} />
           <Text style={styles.errorText}>{error}</Text>
@@ -148,7 +125,7 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={shared.container}>
-      <BrandHeader onLogout={handleLogout} />
+      <BrandHeader />
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>

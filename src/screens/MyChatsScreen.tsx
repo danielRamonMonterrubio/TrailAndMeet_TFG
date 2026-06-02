@@ -8,14 +8,12 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
 import { chatService, ChatPreview } from '../services/chatService';
-import { AuthContext } from '../context/AuthContext';
 import { ChatUnreadContext } from '../context/ChatUnreadContext';
 import { RootStackParamList } from '../navigation/AppNavigation';
 
@@ -37,7 +35,6 @@ const formatRelativeTime = (isoString: string | null): string => {
 };
 
 const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
-  const { session, setSession } = useContext(AuthContext);
   const { setTotalUnread } = useContext(ChatUnreadContext);
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,10 +66,6 @@ const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
   const handleRefresh = () => {
     setRefreshing(true);
     loadChats();
-  };
-
-  const handleLogout = async () => {
-    setSession(null);
   };
 
   const navigateToChat = (chat: ChatPreview) => {
@@ -138,19 +131,6 @@ const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={shared.container}>
-      <LinearGradient
-        colors={[colors.primaryGradientStart, colors.primaryGradientEnd]}
-        style={shared.header}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={shared.headerTitle}>Mis Chats</Text>
-          <Text style={shared.headerSubtitle}>Conversaciones de tus excursiones</Text>
-        </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <MaterialDesignIcons name="logout" size={22} color={colors.white} />
-        </TouchableOpacity>
-      </LinearGradient>
-
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primaryGradientStart} />
@@ -199,9 +179,6 @@ const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
 export default MyChatsScreen;
 
 const styles = StyleSheet.create({
-  logoutButton: {
-    padding: 4,
-  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',

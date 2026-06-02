@@ -11,15 +11,15 @@ App móvil React Native (Android/iOS) para organizar y unirse a excursiones de m
 ## Estructura
 
 ```
-App.tsx                    -> AuthProvider + ChatUnreadProvider + NotificationProvider + AppNavigator
+App.tsx                    -> AuthProvider + ChatUnreadProvider + NotificationProvider + FriendRequestProvider + AppNavigator
 src/
   navigation/
-    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Comunidad + Perfil).
-                             RootStackParamList define todos los screens incluido Notifications.
+    AppNavigation.tsx      -> AuthStack vs AppStack según session. AppStack usa TabNavigator (Explorar + Mis Excursiones + Comunidad + Amigos + Perfil).
+                             RootStackParamList define todos los screens incluido Notifications y Friends.
                              Tab "Comunidad" muestra badge con totalUnread de ChatUnreadContext.
+                             Tab "Amigos" muestra badge con pendingCount de FriendRequestContext.
                              ComunidadTopTabs incluye BrandHeader encima del tab navigator (Foros | Chats).
-                             BrandHeader en ComunidadTopTabs tiene campana con badge de notificaciones.
-                             AppStack carga unreadCount de notificaciones al montar vía getNotifications().
+                             AppStack carga unreadCount de notificaciones y pendingCount de solicitudes al montar.
   screens/
     WelcomeScreen, LoginScreen, RegisterStep1Screen, RegisterStep2Screen
     ExcursionListScreen    -> Listar con filtros. useFocusEffect recarga al recibir foco.
@@ -57,6 +57,7 @@ src/
                              Solo miembros pueden crear publicaciones. isOwner puede eliminar posts.
     ForumMembersScreen     -> Lista de miembros con avatar inicial, badge Moderador, fecha de unión.
                              Moderador ve botón expulsar (no en su propia fila).
+                             Tap en cualquier miembro navega a UserProfileScreen.
     CreatePostScreen       -> Crear publicación: título, contenido, imagen opcional.
     PostDetailScreen       -> Post completo + comentarios ASC + input comentario inline.
                              KeyboardAvoidingView. Owner/moderador puede eliminar post o comentarios.
@@ -67,17 +68,32 @@ src/
                              Al pulsar: modal con detalle grande, se marca como leída en ese momento.
                              Botón "marcar todo leído" (check-all) con Alert de confirmación.
                              useFocusEffect recarga. Actualiza NotificationContext.unreadCount.
+    FriendsScreen          -> Tab "Amigos". Buscador de usuarios (profileService.searchUsers) en la cabecera.
+                             Dos sub-tabs internos: "Mis amigos" (lista aceptados) y "Solicitudes" (pendientes con badge).
+                             Amigos: tap → UserProfileScreen. Botón eliminar amigo con Alert de confirmación.
+                             Solicitudes: botones aceptar (✓) y rechazar (✗) por solicitud.
+                             useFocusEffect recarga y actualiza FriendRequestContext.pendingCount.
+                             Búsqueda: mínimo 2 caracteres; resultados navegan a UserProfileScreen.
+    UserProfileScreen      -> (MODIFICADO) Botón de amistad dinámico justo bajo el avatar:
+                             none → "Añadir amigo"; pending_sent → "Solicitud enviada" (deshabilitado);
+                             pending_received → "Aceptar" + "Rechazar"; accepted → "Amigos · Eliminar".
+                             Carga estado vía get-friendship-status al montar. Acciones via friendService.
   components/
     buttons/               -> AuthButton, PrimaryButton
     cards/                 -> ExcursionCard, FeatureItem
     form/                  -> FormCard, FormInput, FormSelect, FilePickerInput, DatePickerInput, TimePickerInput, SlotsInput
-    headers/               -> BrandHeader (logout opcional + campana notificaciones con badge rojo)
+    headers/               -> BrandHeader — AUTÓNOMO, sin props. Maneja logout (AuthContext) y
+                             navegación a Notifications (useNavigation) internamente. Siempre muestra
+                             campana con badge (NotificationContext) y botón logout. Usar simplemente como <BrandHeader />.
   context/
     AuthContext.tsx        -> Sesión persistida en AsyncStorage + sincronizada con supabase.auth.
                              Al restaurar sesión llama registerPushToken() automáticamente.
     ChatUnreadContext.tsx  -> totalUnread (suma de no leídos de todos los chats). MyChatsScreen lo actualiza; AppStack lo lee para el badge del tab.
     NotificationContext.tsx -> unreadCount (notificaciones no leídas). AppStack lo carga al montar;
                              NotificationsScreen lo actualiza al marcar como leídas. BrandHeader lo lee para el badge de la campana.
+    FriendRequestContext.tsx -> pendingCount (solicitudes de amistad pendientes recibidas). AppStack lo carga al montar
+                             vía friendService.getFriendRequests(). FriendsScreen lo actualiza al cargar solicitudes.
+                             Tab "Amigos" lo lee para el badge.
   services/
     supabaseClient.ts      -> createClient con AsyncStorage como storage
     authService.ts         -> checkEmail/Username, login, logout, completeRegistration (todos vía Edge Functions)
@@ -105,6 +121,15 @@ src/
                              registerPushToken: pide permiso FCM, obtiene token del dispositivo, llama register-push-token.
                              markNotificationsRead: si se pasa id marca solo esa; sin id marca todas.
                              Interface: Notificacion { id, titulo, cuerpo, tipo, data, leida, createdAt }.
+    friendService.ts       -> sendFriendRequest(receptorId), respondFriendRequest(amistadId, accion),
+                             getFriends(), getFriendRequests(), removeFriend(otherUserId), getFriendshipStatus(otherUserId).
+                             Interfaces: Friend { amistadId, userId, nombreUsuario, nombre, apellido, fotoUrl, since },
+                             FriendRequest { amistadId, userId, nombreUsuario, nombre, apellido, fotoUrl, createdAt },
+                             FriendshipStatus = 'none'|'pending_sent'|'pending_received'|'accepted',
+                             FriendshipStatusResult { status, amistadId? }.
+                             Mismo patrón getAuthToken() con 3 reintentos.
+    profileService.ts      -> searchUsers(query) excluye al usuario actual en el backend (.neq('id', user.id)).
+                             Retorna UserSearchResult[] con datos ligeros (sin excursiones). Mínimo 2 chars.
     mappers/excursionMapper.ts
   models/Excursion.ts      -> Tipos ExcursionDifficulty, ExcursionType, interfaz Excursion
   types/
@@ -151,6 +176,7 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **CreatePostScreen** | `src/screens/CreatePostScreen.tsx` | Crear publicación en un foro. Params: `{ foroId, foroTitulo }`. |
 | **PostDetailScreen** | `src/screens/PostDetailScreen.tsx` | Post + comentarios ASC + input comentario. Params: `{ postId, postTitulo, foroId }`. |
 | **NotificationsScreen** | `src/screens/NotificationsScreen.tsx` | Lista de notificaciones. Pulsar abre modal detalle y marca como leída. Botón marcar todo leído. |
+| **FriendsScreen** | `src/screens/FriendsScreen.tsx` | Tab "Amigos". Buscador + sub-tabs Mis amigos / Solicitudes (con badge). Params: ninguno. |
 
 ## Rutas Backend (Edge Functions)
 
@@ -220,6 +246,16 @@ database.types.ts          -> Tipos de todas las tablas de supabase (ENCODING UT
 | **get-notifications** | Devuelve últimas 50 notificaciones del usuario + unreadCount. Dual-client. |
 | **mark-notifications-read** | Marca como leídas. Si se pasa `{ id }` marca solo esa; sin id marca todas. Dual-client. |
 
+### Amigos
+| Función | Descripción |
+|---------|-------------|
+| **send-friend-request** | Enviar solicitud. Si existía rechazada propia, la reactiva (UPDATE). Notifica al receptor. Dual-client. |
+| **respond-friend-request** | Aceptar o rechazar solicitud (solo receptor). Si acepta, notifica al solicitante. Dual-client. |
+| **get-friends** | Lista de amigos aceptados (ambas direcciones). Join con usuario para nombre/foto. Dual-client. |
+| **get-friend-requests** | Solicitudes recibidas pendientes. Join con usuario para datos del solicitante. Dual-client. |
+| **remove-friend** | Eliminar amistad (DELETE en ambas direcciones). Dual-client. |
+| **get-friendship-status** | Estado entre usuario actual y otro: none/pending_sent/pending_received/accepted. Dual-client. |
+
 ### Legado
 | Función | Descripción |
 |---------|-------------|
@@ -269,7 +305,7 @@ npm run lint
 - En Windows no hay `grep`; usar `findstr /i` con adb logcat. Para logs de React Native: `adb logcat -s ReactNativeJS:V`.
 - **Metro se pierde al reconectar USB**: ejecutar `adb reverse tcp:8081 tcp:8081`.
 
-## Estado actual (2026-06-01)
+## Estado actual (2026-06-02)
 
 ### ✅ Funcionalidades completamente implementadas:
 - **Login y registro** (2 pasos)
@@ -286,8 +322,8 @@ npm run lint
 - **Finalizar excursión** (solo organizador, a partir de la fecha de inicio)
 - **Eliminar excursión**
 - **Mis Excursiones** (filtros: todas/organizadas/unidas)
-- **Tab navigation** (Explorar + Mis Excursiones + Comunidad + Perfil)
-- **Logout** (disponible en ExcursionList, MyExcursions via BrandHeader)
+- **Tab navigation** (Explorar + Mis Excursiones + Comunidad + Amigos + Perfil)
+- **Logout** (BrandHeader autónomo — disponible en todas las tabs)
 - **Chat de grupo**
   - Tabla `mensaje` (ON DELETE CASCADE) + `chat_lectura` (lastReadAt por usuario por chat)
   - Realtime via `supabase.channel`, filtrado client-side
@@ -306,10 +342,18 @@ npm run lint
 - **Sistema de notificaciones push** (FCM v1)
   - Tabla `push_token` + tabla `notificacion`
   - Token FCM registrado al login y al restaurar sesión
-  - 10 tipos de notificación: join_request, request_accepted, request_rejected, left_excursion, attendance_confirmed, excursion_deleted, excursion_finished, new_message, new_comment, kicked_from_forum
+  - 12 tipos de notificación: join_request, request_accepted, request_rejected, left_excursion, attendance_confirmed, excursion_deleted, excursion_finished, new_message, new_comment, kicked_from_forum, **friend_request_received**, **friend_request_accepted**
   - Campana en BrandHeader con badge rojo de no leídas
   - NotificationsScreen: lista con distinción visual leída/no leída, modal detalle al pulsar, marcar todo leído
   - Notificaciones se marcan como leídas al pulsar (no al entrar a la pantalla)
+- **Sistema de amigos**
+  - Tabla `amistad` (solicitante_id, receptor_id, estado: pending/accepted/rejected)
+  - 6 Edge Functions: send-friend-request, respond-friend-request, get-friends, get-friend-requests, remove-friend, get-friendship-status
+  - FriendsScreen con buscador integrado y sub-tabs Mis amigos / Solicitudes
+  - Botón dinámico en UserProfileScreen según estado de amistad
+  - Badge en tab "Amigos" con solicitudes pendientes (FriendRequestContext)
+  - Reenvío de solicitud posible tras rechazo
+  - ForumMembersScreen: tap en miembro navega a su perfil
 
 ### 🔐 Estado del patrón dual-client:
 
@@ -321,6 +365,7 @@ npm run lint
 - `create-forum`, `join-forum`, `leave-forum`, `get-my-forums`, `kick-forum-member`
 - `create-post`, `delete-post`, `create-comment`, `delete-comment`, `get-forum-members`
 - `register-push-token`, `get-notifications`, `mark-notifications-read`
+- `send-friend-request`, `respond-friend-request`, `get-friends`, `get-friend-requests`, `remove-friend`, `get-friendship-status`
 
 **✅ Con SERVICE_ROLE_KEY (operaciones públicas):**
 - `auth-check-email`, `auth-check-username`, `auth-login`, `auth-logout`
@@ -347,9 +392,12 @@ npm run lint
 - Los errores `Cannot find name 'Deno'` en las Edge Functions son falsos positivos del linter de VS Code.
 - Deno no es Node.js; el linter TS no tiene los tipos de Deno. No afecta al funcionamiento en Supabase.
 
-**BrandHeader y Comunidad**:
-- El BrandHeader de la tab Comunidad está en `ComunidadTopTabs` (AppNavigation), NO en MyForumsScreen.
-- Esto evita que las tabs aparezcan por encima del header.
+**BrandHeader — autónomo**:
+- `<BrandHeader />` no acepta props. Maneja logout y navegación a Notifications internamente.
+- Usa `useContext(AuthContext)` para el token/logout y `useNavigation<any>()` para navegar.
+- El stack que renderice BrandHeader DEBE tener `Notifications` registrado.
+- El BrandHeader de la tab Comunidad está en `ComunidadTopTabs` (AppNavigation), NO en MyForumsScreen ni MyChatsScreen.
+- MyChatsScreen no tiene header propio; lo hereda de ComunidadTopTabs. No añadir otro header allí.
 
 **PostDetailScreen — imagen al abrir teclado**:
 - `PostHeader` es un `useMemo` (no un componente inline) para evitar que la imagen recargue al aparecer el teclado.
@@ -368,3 +416,9 @@ npm run lint
 
 **database.types.ts**:
 - Encoding UTF-16 LE (con BOM). Usar como referencia, no editar manualmente.
+- Para leerlo desde scripts usar `node -e "... fs.readFileSync(..., 'utf16le') ..."` o Python con `open(..., encoding='utf-16')`.
+
+**Tabla amistad y relaciones bidireccionales**:
+- Las queries de amistad usan `.or('and(solicitante_id.eq.X,receptor_id.eq.Y),and(solicitante_id.eq.Y,receptor_id.eq.X)')`.
+- `amistad` referencia `auth.users`, NO la tabla `usuario` → los joins de perfil requieren una segunda query sobre `usuario`.
+- Un rechazo (rejected) NO bloquea reenvío futuro: send-friend-request actualiza a pending si la fila existe con estado rejected.

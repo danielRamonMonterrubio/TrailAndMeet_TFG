@@ -136,6 +136,17 @@ NOTIFICACIONES PUSH
 ├─ get-notifications/               (dual-client, últimas 50, devuelve unreadCount)
 └─ mark-notifications-read/         (dual-client, id? → una sola; sin id → todas)
 
+AMIGOS
+├─ send-friend-request/             (dual-client, notifica receptor con friend_request_received)
+│                                    Lógica: rejected propio → UPDATE a pending; otro pending → 409; accepted → 409
+├─ respond-friend-request/          (dual-client, solo receptor puede responder)
+│                                    accion: 'accepted' | 'rejected'. Si accepted → notifica solicitante con friend_request_accepted
+├─ get-friends/                     (dual-client, estado='accepted', ambas direcciones)
+│                                    Dos queries: amistad + usuario (no hay FK directa entre amistad y usuario)
+├─ get-friend-requests/             (dual-client, receptor_id=me AND estado='pending')
+├─ remove-friend/                   (dual-client, DELETE en ambas direcciones con .or())
+└─ get-friendship-status/           (dual-client, devuelve none/pending_sent/pending_received/accepted + amistadId)
+
 PARSING (Legado)
 └─ parse-and-create-excursion/      (DEPRECATED - no usar)
 ```
@@ -156,6 +167,8 @@ PARSING (Legado)
 | `new_message` | mensaje en chat | todos los participantes excepto emisor |
 | `new_comment` | comentario en post | autor del post |
 | `kicked_from_forum` | moderador expulsa miembro | miembro expulsado |
+| `friend_request_received` | alguien envía solicitud de amistad | receptor |
+| `friend_request_accepted` | receptor acepta solicitud de amistad | solicitante original |
 
 ---
 
@@ -272,6 +285,22 @@ notificacion {
   leida: boolean DEFAULT false
   createdAt: timestamptz
   INDEX (userId, createdAt DESC)
+}
+
+amistad {
+  id: uuid (PK, gen_random_uuid())
+  solicitante_id: uuid (FK → auth.users ON DELETE CASCADE)
+  receptor_id: uuid (FK → auth.users ON DELETE CASCADE)
+  estado: text CHECK ('pending' | 'accepted' | 'rejected') DEFAULT 'pending'
+  created_at: timestamptz DEFAULT NOW()
+  updated_at: timestamptz DEFAULT NOW()
+  UNIQUE (solicitante_id, receptor_id)
+  CHECK (solicitante_id != receptor_id)
+  INDEX idx_amistad_solicitante (solicitante_id)
+  INDEX idx_amistad_receptor (receptor_id)
+  INDEX idx_amistad_estado (estado)
+  RLS habilitado (bypasado por SERVICE_ROLE_KEY en Edge Functions)
+  NOTA: referencia auth.users, NO tabla usuario → joins de perfil requieren segunda query
 }
 ```
 

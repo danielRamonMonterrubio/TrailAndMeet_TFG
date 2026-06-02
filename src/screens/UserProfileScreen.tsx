@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,6 +15,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
 import { profileService, UserProfile, ExcursionResumen, calcularEdad } from '../services/profileService';
+import { friendService, FriendshipStatus } from '../services/friendService';
 import { RootStackParamList } from '../navigation/AppNavigation';
 
 interface RouteParams {
@@ -83,9 +85,13 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [asistidas, setAsistidas] = useState<ExcursionResumen[]>([]);
   const [activas, setActivas] = useState<ExcursionResumen[]>([]);
   const [loading, setLoading] = useState(true);
+  const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
+  const [amistadId, setAmistadId] = useState<string | undefined>(undefined);
+  const [friendLoading, setFriendLoading] = useState(false);
 
   useEffect(() => {
     loadProfile();
+    loadFriendStatus();
   }, [userId]);
 
   const loadProfile = async () => {
@@ -100,6 +106,65 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadFriendStatus = async () => {
+    try {
+      const result = await friendService.getFriendshipStatus(userId);
+      setFriendStatus(result.status);
+      setAmistadId(result.amistadId);
+    } catch {
+      // si falla, dejamos status 'none' silenciosamente
+    }
+  };
+
+  const enviarSolicitud = async () => {
+    setFriendLoading(true);
+    try {
+      await friendService.sendFriendRequest(userId);
+      setFriendStatus('pending_sent');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setFriendLoading(false);
+    }
+  };
+
+  const responderSolicitud = async (accion: 'accepted' | 'rejected') => {
+    if (!amistadId) return;
+    setFriendLoading(true);
+    try {
+      await friendService.respondFriendRequest(amistadId, accion);
+      setFriendStatus(accion === 'accepted' ? 'accepted' : 'none');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setFriendLoading(false);
+    }
+  };
+
+  const eliminarAmigo = () => {
+    Alert.alert(
+      'Eliminar amigo',
+      `¿Quieres eliminar a @${profile?.nombreUsuario ?? username} de tus amigos?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar', style: 'destructive', onPress: async () => {
+            setFriendLoading(true);
+            try {
+              await friendService.removeFriend(userId);
+              setFriendStatus('none');
+              setAmistadId(undefined);
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setFriendLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const avatarLetter = (profile?.nombreUsuario ?? username).charAt(0).toUpperCase();
@@ -141,6 +206,38 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.edadText}>{edad} años</Text>
               </View>
             ) : null}
+          </View>
+
+          {/* ── Botón amistad ── */}
+          <View style={styles.friendBtnContainer}>
+            {friendLoading ? (
+              <ActivityIndicator color={colors.primaryGradientStart} />
+            ) : friendStatus === 'none' ? (
+              <TouchableOpacity style={styles.friendBtnPrimary} onPress={enviarSolicitud}>
+                <MaterialDesignIcons name="account-plus" size={18} color={colors.white} />
+                <Text style={styles.friendBtnPrimaryText}>Añadir amigo</Text>
+              </TouchableOpacity>
+            ) : friendStatus === 'pending_sent' ? (
+              <View style={styles.friendBtnDisabled}>
+                <MaterialDesignIcons name="account-clock-outline" size={18} color={colors.textMuted} />
+                <Text style={styles.friendBtnDisabledText}>Solicitud enviada</Text>
+              </View>
+            ) : friendStatus === 'pending_received' ? (
+              <View style={styles.friendBtnRow}>
+                <TouchableOpacity style={[styles.friendBtnPrimary, { flex: 1 }]} onPress={() => responderSolicitud('accepted')}>
+                  <MaterialDesignIcons name="check" size={18} color={colors.white} />
+                  <Text style={styles.friendBtnPrimaryText}>Aceptar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.friendBtnSecondary, { flex: 1 }]} onPress={() => responderSolicitud('rejected')}>
+                  <Text style={styles.friendBtnSecondaryText}>Rechazar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.friendBtnSecondary} onPress={eliminarAmigo}>
+                <MaterialDesignIcons name="account-check" size={18} color={colors.primaryGradientStart} />
+                <Text style={styles.friendBtnSecondaryText}>Amigos · Eliminar</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Sobre mí ── */}
@@ -328,4 +425,43 @@ const styles = StyleSheet.create({
   },
   proximamenteTag: { fontSize: 11, fontWeight: '700', color: colors.primaryGradientStart },
   proximamenteDesc: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  friendBtnContainer: { paddingHorizontal: 16 },
+  friendBtnRow: { flexDirection: 'row', gap: 10 },
+  friendBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primaryGradientStart,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  friendBtnPrimaryText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  friendBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderWidth: 1.5,
+    borderColor: colors.primaryGradientStart,
+    backgroundColor: colors.white,
+  },
+  friendBtnSecondaryText: { color: colors.primaryGradientStart, fontWeight: '700', fontSize: 15 },
+  friendBtnDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.backgroundSoft,
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+  },
+  friendBtnDisabledText: { color: colors.textMuted, fontWeight: '600', fontSize: 15 },
 });
