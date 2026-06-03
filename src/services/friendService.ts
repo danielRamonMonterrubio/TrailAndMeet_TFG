@@ -8,7 +8,7 @@ async function getAuthToken(): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
   }
   return ANON_KEY ?? '';
 }
@@ -22,6 +22,27 @@ async function callFunction(name: string, body: object): Promise<any> {
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
   const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -65,12 +86,12 @@ export const friendService = {
   },
 
   async getFriends(): Promise<Friend[]> {
-    const data = await callFunction('get-friends', {});
+    const data = await getFunction('get-friends');
     return data.friends as Friend[];
   },
 
   async getFriendRequests(): Promise<FriendRequest[]> {
-    const data = await callFunction('get-friend-requests', {});
+    const data = await getFunction('get-friend-requests');
     return data.requests as FriendRequest[];
   },
 
@@ -79,7 +100,7 @@ export const friendService = {
   },
 
   async getFriendshipStatus(otherUserId: string): Promise<FriendshipStatusResult> {
-    const data = await callFunction('get-friendship-status', { otherUserId });
+    const data = await getFunction('get-friendship-status', { otherUserId });
     return data as FriendshipStatusResult;
   },
 };

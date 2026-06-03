@@ -11,7 +11,13 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { search, categoria, offset = 0, limit = 20 } = await req.json()
+    const url = new URL(req.url)
+    const search = url.searchParams.get('search') ?? undefined
+    const categoria = url.searchParams.get('categoria') ?? undefined
+    const offsetParam = url.searchParams.get('offset')
+    const offset = offsetParam ? parseInt(offsetParam, 10) || 0 : 0
+    const limitParam = url.searchParams.get('limit')
+    const limit = limitParam ? parseInt(limitParam, 10) || 20 : 20
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {

@@ -8,7 +8,7 @@ async function getAuthToken(): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
   }
   return ANON_KEY ?? '';
 }
@@ -22,6 +22,27 @@ async function callFunction(name: string, body: object): Promise<any> {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
   const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -95,11 +116,11 @@ export const forumService = {
     offset?: number;
     limit?: number;
   }): Promise<{ foros: ForumSummary[]; total: number }> {
-    return callFunction('get-forums', params);
+    return getFunction('get-forums', params);
   },
 
   async getForumDetail(foroId: number): Promise<ForumDetail> {
-    const data = await callFunction('get-forum-detail', { foroId });
+    const data = await getFunction('get-forum-detail', { foroId });
     return data.foro;
   },
 
@@ -112,7 +133,7 @@ export const forumService = {
   },
 
   async getMyForums(): Promise<ForumSummary[]> {
-    const data = await callFunction('get-my-forums', {});
+    const data = await getFunction('get-my-forums');
     return data.foros;
   },
 
@@ -131,7 +152,7 @@ export const forumService = {
   },
 
   async getPosts(foroId: number, cursor?: number): Promise<{ posts: Post[]; hasMore: boolean }> {
-    return callFunction('get-posts', { foroId, cursor, limit: 20 });
+    return getFunction('get-posts', { foroId, cursor, limit: 20 });
   },
 
   async deletePost(postId: number): Promise<void> {
@@ -144,7 +165,7 @@ export const forumService = {
   },
 
   async getPostDetail(postId: number): Promise<{ post: Post & { isModerador: boolean }; comentarios: Comment[] }> {
-    return callFunction('get-post-detail', { postId });
+    return getFunction('get-post-detail', { postId });
   },
 
   async deleteComment(commentId: number): Promise<void> {
@@ -155,6 +176,6 @@ export const forumService = {
     members: (ForumMember & { esModerador: boolean })[];
     isModerador: boolean;
   }> {
-    return callFunction('get-forum-members', { foroId });
+    return getFunction('get-forum-members', { foroId });
   },
 };

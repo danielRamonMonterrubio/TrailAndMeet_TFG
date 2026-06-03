@@ -30,7 +30,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser(token)
     if (authError || !user) return json({ error: 'No autenticado' }, 401)
 
-    const { otherUserId } = await req.json()
+    const urlObj = new URL(req.url)
+    const otherUserId = urlObj.searchParams.get('otherUserId')
     if (!otherUserId) return json({ error: 'otherUserId requerido' }, 400)
 
     const { data: amistad } = await supabase

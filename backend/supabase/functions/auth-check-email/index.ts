@@ -15,8 +15,8 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    console.log('Leyendo JSON...')
-    const { email } = await req.json()
+    const url = new URL(req.url)
+    const email = url.searchParams.get('email')
     console.log('Email recibido:', email)
 
     if (!email) {

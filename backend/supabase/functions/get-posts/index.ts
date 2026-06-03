@@ -11,7 +11,12 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { foroId, cursor, limit = 20 } = await req.json()
+    const url = new URL(req.url)
+    const foroId = url.searchParams.get('foroId')
+    const limitParam = url.searchParams.get('limit')
+    const limit = limitParam ? parseInt(limitParam, 10) || 20 : 20
+    const cursorParam = url.searchParams.get('cursor')
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined
 
     if (!foroId) {
       return new Response(JSON.stringify({ error: 'foroId es requerido' }), { status: 400, headers: corsHeaders })

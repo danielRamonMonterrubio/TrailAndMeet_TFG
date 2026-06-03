@@ -34,46 +34,43 @@ export interface ExcursionDetail {
   status: string;
 }
 
+async function getAuthToken(): Promise<string> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) return session.access_token;
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
+  }
+  return ANON_KEY ?? '';
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
 export const excursionDetailService = {
   async getExcursionDetail(excursionId: string): Promise<ExcursionDetail> {
     try {
       console.log('📖 getExcursionDetail START:', excursionId);
       const numericId = parseInt(excursionId, 10);
 
-      // Obtener token con reintento si es necesario
-      let token: string | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          token = session.access_token;
-          break;
-        }
-        // Si no hay sesión en el primer intento, esperar un poco y reintentar
-        if (attempt < 2) {
-          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
-        }
-      }
-      
-      // Si aún no hay token, usar ANON_KEY
-      token = token || ANON_KEY;
-      
-      console.log('🔑 Token type:', token === ANON_KEY ? 'ANON' : 'AUTH');
-
-      const response = await fetch(`${API_URL}/functions/v1/get-excursion-detail`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ excursionId: numericId }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${response.status}`);
-      }
-
-      const excursionData = await response.json();
+      const excursionData = await getFunction('get-excursion-detail', { excursionId: numericId });
 
       console.log('📦 Raw excursionData from backend:', {
         isOrganizer: excursionData.isOrganizer,

@@ -10,7 +10,7 @@ async function getAuthToken(): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
   }
   return ANON_KEY ?? '';
 }
@@ -24,6 +24,27 @@ async function callFunction(name: string, body: object): Promise<any> {
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
   const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -107,13 +128,13 @@ export interface UserSearchResult {
 
 export const profileService = {
   async getUserProfile(userId: string): Promise<UserProfileData> {
-    return callFunction('get-user-profile', { userId });
+    return getFunction('get-user-profile', { userId });
   },
 
   async getOwnProfile(): Promise<UserProfileData> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No autenticado');
-    return callFunction('get-user-profile', { userId: user.id }) as Promise<UserProfileData>;
+    return getFunction('get-user-profile', { userId: user.id }) as Promise<UserProfileData>;
   },
 
   async updateProfile(updateData: UpdateProfileData): Promise<void> {
@@ -121,7 +142,7 @@ export const profileService = {
   },
 
   async searchUsers(query: string): Promise<UserSearchResult[]> {
-    const data = await callFunction('search-users', { query });
+    const data = await getFunction('search-users', { query });
     return data.users as UserSearchResult[];
   },
 

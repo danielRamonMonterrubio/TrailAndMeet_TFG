@@ -8,7 +8,7 @@ async function getAuthToken(): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
   }
   return ANON_KEY ?? '';
 }
@@ -22,6 +22,27 @@ async function callFunction(name: string, body: object): Promise<any> {
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
   const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -65,9 +86,11 @@ export const chatService = {
     cursor?: number,
     limit = 50
   ): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
-    const body: Record<string, unknown> = { excursionId: parseInt(excursionId, 10), limit };
-    if (cursor !== undefined) body.cursor = cursor;
-    const data = await callFunction('get-chat-messages', body);
+    const data = await getFunction('get-chat-messages', {
+      excursionId: parseInt(excursionId, 10),
+      limit,
+      cursor,
+    });
     return { messages: data.messages ?? [], hasMore: data.hasMore ?? false };
   },
 
@@ -77,7 +100,7 @@ export const chatService = {
   },
 
   async getMyChats(): Promise<ChatPreview[]> {
-    const data = await callFunction('get-my-chats', {});
+    const data = await getFunction('get-my-chats');
     return data.chats ?? [];
   },
 

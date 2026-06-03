@@ -38,6 +38,27 @@ async function callFunction(name: string, body: object): Promise<any> {
   return data;
 }
 
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
 export interface PendingRequest {
   usuarioId: string;
   fechaSolicitud: string;
@@ -58,9 +79,7 @@ export interface Participant {
 
 export const excursionRequestService = {
   async getPendingRequests(excursionId: string): Promise<PendingRequest[]> {
-    const result = await callFunction('get-pending-requests', {
-      excursionId: parseInt(excursionId, 10),
-    });
+    const result = await getFunction('get-pending-requests', { excursionId });
     return result.requests ?? [];
   },
 
@@ -77,9 +96,7 @@ export const excursionRequestService = {
   },
 
   async getExcursionParticipants(excursionId: string): Promise<Participant[]> {
-    const result = await callFunction('get-excursion-participants', {
-      excursionId: parseInt(excursionId, 10),
-    });
+    const result = await getFunction('get-excursion-participants', { excursionId });
     return result.participants ?? [];
   },
 };

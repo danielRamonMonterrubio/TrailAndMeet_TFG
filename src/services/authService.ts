@@ -4,23 +4,30 @@ import Config from 'react-native-config'
 const API_URL = Config.SUPABASE_URL
 const ANON_KEY = Config.SUPABASE_ANON_KEY
 
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)])
+  const qs = new URLSearchParams(entries).toString()
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${ANON_KEY}`,
+    },
+  })
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }))
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
+  return data
+}
+
 export async function checkEmailExists(email: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/functions/v1/auth-check-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ANON_KEY}`,
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.exists;
+    const data = await getFunction('auth-check-email', { email })
+    return data.exists
   } catch (error) {
     console.error("Error comprobando email:", error);
     throw error;
@@ -29,21 +36,8 @@ export async function checkEmailExists(email: string): Promise<boolean> {
 
 export async function checkUsernameExists(username: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/functions/v1/auth-check-username`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ANON_KEY}`,
-      },
-      body: JSON.stringify({ username }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.exists;
+    const data = await getFunction('auth-check-username', { username })
+    return data.exists
   } catch (error) {
     console.error("Error comprobando username:", error);
     throw error;

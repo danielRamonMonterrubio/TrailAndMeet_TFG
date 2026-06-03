@@ -18,7 +18,7 @@ async function getAuthToken(): Promise<string | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) return session.access_token;
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    if (attempt < 2) await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
   }
   return null;
 }
@@ -32,6 +32,25 @@ async function callFunction(name: string, body: object = {}): Promise<any> {
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
   return res.json();
 }
@@ -74,7 +93,7 @@ export async function registerPushToken(): Promise<void> {
 }
 
 export async function getNotifications(): Promise<{ notificaciones: Notificacion[]; unreadCount: number }> {
-  const data = await callFunction('get-notifications');
+  const data = await getFunction('get-notifications');
   return { notificaciones: data.notificaciones ?? [], unreadCount: data.unreadCount ?? 0 };
 }
 

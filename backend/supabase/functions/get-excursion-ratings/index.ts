@@ -30,7 +30,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser(token)
     if (authError || !user) return json({ error: 'No autenticado' }, 401)
 
-    const { excursionId } = await req.json()
+    const urlObj = new URL(req.url)
+    const excursionId = urlObj.searchParams.get('excursionId')
     if (!excursionId) return json({ error: 'excursionId requerido' }, 400)
 
     // Verificar que la excursión existe y está finalizada

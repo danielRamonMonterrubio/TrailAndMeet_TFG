@@ -44,7 +44,8 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    const { query } = await req.json()
+    const url = new URL(req.url)
+    const query = url.searchParams.get('query')
 
     if (!query || query.trim().length < 2) {
       return new Response(

@@ -11,7 +11,8 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { username } = await req.json()
+    const url = new URL(req.url)
+    const username = url.searchParams.get('username')
 
     if (!username) {
       return new Response(

@@ -11,7 +11,9 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { difficulty, type } = await req.json()
+    const url = new URL(req.url)
+    const difficulty = url.searchParams.get('difficulty')
+    const type = url.searchParams.get('type')
 
     console.log('get-filtered-excursions - difficulty:', difficulty, 'type:', type)
 

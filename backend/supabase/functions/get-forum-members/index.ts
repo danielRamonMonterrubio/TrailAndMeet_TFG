@@ -11,7 +11,8 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { foroId } = await req.json()
+    const url = new URL(req.url)
+    const foroId = url.searchParams.get('foroId')
 
     if (!foroId) {
       return new Response(JSON.stringify({ error: 'foroId es requerido' }), { status: 400, headers: corsHeaders })

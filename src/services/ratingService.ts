@@ -28,6 +28,27 @@ async function callFunction(name: string, body: object): Promise<any> {
   return data;
 }
 
+async function getFunction(
+  name: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<any> {
+  const token = await getAuthToken();
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => [k, String(v)]);
+  const qs = new URLSearchParams(entries).toString();
+  const url = `${API_URL}/functions/v1/${name}${qs ? '?' + qs : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  const data = await response.json().catch(() => ({ error: 'Error desconocido' }));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+
 export interface ParticipanteValorable {
   usuarioId: string;
   nombreUsuario: string;
@@ -47,7 +68,7 @@ export interface RatingValues {
 
 export const ratingService = {
   async getExcursionRatings(excursionId: string): Promise<ParticipanteValorable[]> {
-    const data = await callFunction('get-excursion-ratings', { excursionId });
+    const data = await getFunction('get-excursion-ratings', { excursionId });
     return data.participants as ParticipanteValorable[];
   },
 

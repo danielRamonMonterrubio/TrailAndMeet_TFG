@@ -11,7 +11,12 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { excursionId, cursor, limit = 50 } = await req.json()
+    const url = new URL(req.url)
+    const excursionId = url.searchParams.get('excursionId')
+    const limitParam = url.searchParams.get('limit')
+    const limit = limitParam ? parseInt(limitParam, 10) || 50 : 50
+    const cursorParam = url.searchParams.get('cursor')
+    const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined
 
     if (!excursionId) {
       return new Response(

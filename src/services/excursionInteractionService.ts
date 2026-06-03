@@ -16,7 +16,7 @@ async function getAuthToken(): Promise<string> {
     }
     // Esperar un poco antes de reintentar
     if (attempt < 2) {
-      await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 100 * (attempt + 1)));
     }
   }
   
@@ -66,7 +66,6 @@ export const excursionInteractionService = {
     const response = await fetch(`${API_URL}/functions/v1/get-my-excursions?tipo=${tipo}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
