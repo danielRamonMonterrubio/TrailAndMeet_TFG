@@ -5,6 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
+
 export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -14,86 +18,91 @@ export async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url)
     const difficulty = url.searchParams.get('difficulty')
     const type = url.searchParams.get('type')
+    const offsetParam = url.searchParams.get('offset')
+    const offset = offsetParam ? parseInt(offsetParam, 10) || 0 : 0
+    const limit = 10
 
-    console.log('get-filtered-excursions - difficulty:', difficulty, 'type:', type)
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) return json({ error: 'Authorization requerido' }, 401)
 
+    const token = authHeader.replace('Bearer ', '')
+
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } }, auth: { autoRefreshToken: false, persistSession: false } }
+    )
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Llamar RPC con filtros
-    const { data: excursions, error } = await supabase.rpc('get_filtered_excursions', {
-      p_difficulty: difficulty || null,
-      p_type: type || null,
-    })
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token)
+    if (authError || !user) return json({ error: 'No autenticado' }, 401)
+
+    let query = supabase
+      .from('excursion')
+      .select(`
+        id, titulo, dificultad, tipoExcursion, fechaInicio, capacidad,
+        puntoEncuentro, imagenURL, creadoPor,
+        organizador:creadoPor ( nombreUsuario )
+      `, { count: 'exact' })
+      .eq('status', 'published')
+      .neq('creadoPor', user.id)
+
+    if (difficulty) query = query.eq('dificultad', difficulty)
+    if (type) query = query.eq('tipoExcursion', type)
+
+    query = query
+      .order('fechaInicio', { ascending: true })
+      .range(offset, offset + limit - 1)
+
+    const { data: excursions, error, count } = await query
 
     if (error) {
-      console.error('Error en RPC:', error)
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 400, headers: corsHeaders }
-      )
+      console.error('Error en get-filtered-excursions:', error)
+      return json({ error: error.message }, 500)
     }
 
-    const list = (excursions ?? []) as any[]
+    const list = excursions ?? []
 
     if (list.length === 0) {
-      return new Response(
-        JSON.stringify([]),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({ excursions: [], total: count ?? 0, hasMore: false })
     }
 
-    // Resolver usuario actual (opcional)
-    let userId: string | null = null
-    const authHeader = req.headers.get('Authorization')
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '')
-      const { data: { user } } = await supabase.auth.getUser(token)
-      if (user) userId = user.id
-    }
-
-    // Cargar participaciones de las excursiones devueltas
-    const ids = list.map(e => e.id)
-    const { data: participaciones, error: partError } = await supabase
+    // Contar participantes aceptados por excursión para calcular plazas libres
+    const ids = list.map((e: any) => e.id)
+    const { data: participaciones } = await supabase
       .from('participacion')
-      .select('excursionId, usuarioId')
+      .select('excursionId')
       .in('excursionId', ids)
-
-    if (partError) {
-      console.error('Error cargando participaciones:', partError)
-      return new Response(
-        JSON.stringify({ error: partError.message }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
+      .eq('status', 'accepted')
 
     const countByExcursion = new Map<number, number>()
-    const joinedByCurrentUser = new Set<number>()
-
     for (const p of participaciones ?? []) {
       countByExcursion.set(p.excursionId, (countByExcursion.get(p.excursionId) ?? 0) + 1)
-      if (userId && p.usuarioId === userId) joinedByCurrentUser.add(p.excursionId)
     }
 
-    const enriched = list.map(e => ({
-      ...e,
+    const enriched = list.map((e: any) => ({
+      id: e.id,
+      titulo: e.titulo,
+      dificultad: e.dificultad,
+      tipoExcursion: e.tipoExcursion,
+      fechaInicio: e.fechaInicio,
+      capacidad: e.capacidad,
+      puntoEncuentro: e.puntoEncuentro,
+      imagenURL: e.imagenURL,
+      creadoPor: e.creadoPor,
+      organizerName: (e.organizador as any)?.nombreUsuario ?? 'Desconocido',
       availableSpots: Math.max(0, (e.capacidad ?? 0) - (countByExcursion.get(e.id) ?? 0)),
-      isOrganizer: userId ? e.creadoPor === userId : false,
-      isJoined: userId ? joinedByCurrentUser.has(e.id) : false,
     }))
 
-    return new Response(
-      JSON.stringify(enriched),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    const total = count ?? 0
+    return json({ excursions: enriched, total, hasMore: offset + limit < total })
   } catch (error) {
     console.error('Error in get-filtered-excursions:', error)
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Error desconocido' }),
-      { status: 500, headers: corsHeaders }
-    )
+    return json({ error: error instanceof Error ? error.message : 'Error desconocido' }, 500)
   }
 }
 

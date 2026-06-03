@@ -128,6 +128,19 @@ export async function handler(req: Request): Promise<Response> {
       isJoined: joinedIds.has(e.id),
     }))
 
+    const now = Date.now()
+    enriched.sort((a, b) => {
+      const aPublished = a.status === 'published'
+      const bPublished = b.status === 'published'
+      if (aPublished !== bPublished) return aPublished ? -1 : 1
+      if (aPublished) {
+        // Publicadas: más próxima a hoy primero (ASC)
+        return new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime()
+      }
+      // Finalizadas/canceladas: más reciente primero (DESC)
+      return new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()
+    })
+
     return new Response(
       JSON.stringify(enriched),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

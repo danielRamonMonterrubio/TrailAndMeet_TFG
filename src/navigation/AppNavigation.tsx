@@ -158,6 +158,12 @@ const FriendsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Friends" component={FriendsScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
+    <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
+    <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
+    <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="RateParticipants" component={RateParticipantsScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
   </Stack.Navigator>
 );
@@ -168,6 +174,13 @@ const ProfileStack = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="UserSearch" component={UserSearchScreen} />
     <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    <Stack.Screen name="ExcursionDetail" component={ExcursionDetailScreen} />
+    <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
+    <Stack.Screen name="EditExcursion" component={EditExcursionScreen} />
+    <Stack.Screen name="ExcursionParticipants" component={ExcursionParticipantsScreen} />
+    <Stack.Screen name="RateParticipants" component={RateParticipantsScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
   </Stack.Navigator>
 );
 

@@ -40,45 +40,35 @@ export async function handler(req: Request): Promise<Response> {
       )
     }
 
-    // IDs de participaciones aceptadas con asistencia confirmada
-    const { data: partAsistidas } = await supabase
+    // Todas las participaciones aceptadas del usuario
+    const { data: todasPart } = await supabase
       .from('participacion')
       .select('excursionId')
       .eq('usuarioId', userId)
       .eq('status', 'accepted')
-      .not('attendance_confirmed_at', 'is', null)
 
-    const asistIdsRaw = (partAsistidas ?? []).map((r: any) => r.excursionId)
+    const todosIds = (todasPart ?? []).map((r: any) => r.excursionId)
+
+    const nowMs = Date.now()
 
     let excursionesAsistidas: any[] = []
-    if (asistIdsRaw.length > 0) {
-      const { data } = await supabase
-        .from('excursion')
-        .select('id, titulo, dificultad, tipoExcursion, fechaInicio, imagenURL')
-        .in('id', asistIdsRaw)
-        .eq('status', 'finished')
-        .order('fechaInicio', { ascending: false })
-      excursionesAsistidas = data ?? []
-    }
-
-    // IDs de participaciones aceptadas en excursiones activas
-    const { data: partActivas } = await supabase
-      .from('participacion')
-      .select('excursionId')
-      .eq('usuarioId', userId)
-      .eq('status', 'accepted')
-
-    const activasIds = (partActivas ?? []).map((r: any) => r.excursionId)
-
     let excursionesActivas: any[] = []
-    if (activasIds.length > 0) {
-      const { data } = await supabase
+
+    if (todosIds.length > 0) {
+      const { data: todasExcursiones } = await supabase
         .from('excursion')
         .select('id, titulo, dificultad, tipoExcursion, fechaInicio, imagenURL')
-        .in('id', activasIds)
-        .eq('status', 'published')
-        .order('fechaInicio', { ascending: true })
-      excursionesActivas = data ?? []
+        .in('id', todosIds)
+
+      const todas = todasExcursiones ?? []
+
+      excursionesAsistidas = todas
+        .filter((e: any) => new Date(e.fechaInicio).getTime() < nowMs)
+        .sort((a: any, b: any) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime())
+
+      excursionesActivas = todas
+        .filter((e: any) => new Date(e.fechaInicio).getTime() >= nowMs)
+        .sort((a: any, b: any) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime())
     }
 
     // Valoraciones recibidas (anónimas: solo medias y total)

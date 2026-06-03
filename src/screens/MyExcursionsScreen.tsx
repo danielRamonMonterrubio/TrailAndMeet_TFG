@@ -145,15 +145,22 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
               {excursions.length} {excursions.length === 1 ? 'excursión' : 'excursiones'}
             </Text>
             {excursions.map((excursion) => (
-              <ExcursionCard
-                key={excursion.id}
-                excursion={excursion}
-                onPress={() =>
-                  navigation.navigate('ExcursionDetail', {
-                    id: excursion.id,
-                  })
-                }
-              />
+              <View key={excursion.id}>
+                {excursion.status === 'finished' && (
+                  <View style={styles.finishedTab}>
+                    <MaterialDesignIcons name="flag-checkered" size={11} color={colors.white} />
+                    <Text style={styles.finishedTabText}>Finalizada</Text>
+                  </View>
+                )}
+                <ExcursionCard
+                  excursion={excursion}
+                  onPress={() =>
+                    navigation.navigate('ExcursionDetail', {
+                      id: excursion.id,
+                    })
+                  }
+                />
+              </View>
             ))}
           </>
         ) : (
@@ -263,6 +270,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  finishedTab: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.textMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  finishedTabText: {
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 

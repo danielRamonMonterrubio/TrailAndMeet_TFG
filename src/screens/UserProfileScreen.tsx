@@ -39,7 +39,7 @@ const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
   Dificil: { bg: colors.hardBg, text: colors.hardText },
 };
 
-const ExcursionMiniCard: React.FC<{ excursion: ExcursionResumen }> = ({ excursion }) => {
+const ExcursionMiniCard: React.FC<{ excursion: ExcursionResumen; onPress: () => void }> = ({ excursion, onPress }) => {
   const dc = DIFFICULTY_COLORS[excursion.dificultad] ?? { bg: colors.backgroundSoft, text: colors.textSecondary };
   const date = new Date(excursion.fechaInicio).toLocaleDateString('es-ES', {
     day: 'numeric',
@@ -47,17 +47,20 @@ const ExcursionMiniCard: React.FC<{ excursion: ExcursionResumen }> = ({ excursio
     year: 'numeric',
   });
   return (
-    <View style={miniStyles.card}>
+    <TouchableOpacity style={miniStyles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={miniStyles.info}>
         <Text style={miniStyles.title} numberOfLines={1}>{excursion.titulo}</Text>
         <Text style={miniStyles.meta}>{excursion.tipoExcursion} · {date}</Text>
       </View>
-      <View style={[miniStyles.badge, { backgroundColor: dc.bg }]}>
-        <Text style={[miniStyles.badgeText, { color: dc.text }]}>
-          {DIFFICULTY_LABELS[excursion.dificultad] ?? excursion.dificultad}
-        </Text>
+      <View style={miniStyles.right}>
+        <View style={[miniStyles.badge, { backgroundColor: dc.bg }]}>
+          <Text style={[miniStyles.badgeText, { color: dc.text }]}>
+            {DIFFICULTY_LABELS[excursion.dificultad] ?? excursion.dificultad}
+          </Text>
+        </View>
+        <MaterialDesignIcons name="chevron-right" size={16} color={colors.textMuted} />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -73,6 +76,7 @@ const miniStyles = StyleSheet.create({
   info: { flex: 1 },
   title: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   meta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontWeight: '700' },
 });
@@ -265,6 +269,17 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
             ) : null}
           </View>
 
+          {/* ── Stat asistidas ── */}
+          {!loading && (
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <MaterialDesignIcons name="flag-checkered" size={18} color={colors.primaryGradientStart} />
+                <Text style={styles.statNumber}>{asistidas.length}</Text>
+                <Text style={styles.statLabel}>excursión{asistidas.length !== 1 ? 'es' : ''} asistida{asistidas.length !== 1 ? 's' : ''}</Text>
+              </View>
+            </View>
+          )}
+
           {/* ── Botón amistad ── */}
           <View style={styles.friendBtnContainer}>
             {friendLoading ? (
@@ -350,34 +365,26 @@ const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
             )}
           </View>
 
-          {/* ── Excursiones activas ── */}
-          {activas.length > 0 && (
+          {/* ── Excursiones próximas (apuntado) ── */}
+          {activas.length > 0 ? (
             <View style={shared.card}>
               <Text style={styles.sectionLabel}>
-                Apuntado · {activas.length} excursión{activas.length !== 1 ? 'es' : ''}
+                Próximas · {activas.length} excursión{activas.length !== 1 ? 'es' : ''}
               </Text>
               <View style={styles.gap10}>
-                {activas.map(exc => <ExcursionMiniCard key={exc.id} excursion={exc} />)}
+                {activas.map(exc => (
+                  <ExcursionMiniCard
+                    key={exc.id}
+                    excursion={exc}
+                    onPress={() => navigation.navigate('ExcursionDetail', { id: String(exc.id) })}
+                  />
+                ))}
               </View>
             </View>
-          )}
-
-          {/* ── Excursiones asistidas ── */}
-          {asistidas.length > 0 && (
-            <View style={shared.card}>
-              <Text style={styles.sectionLabel}>
-                Asistidas · {asistidas.length} excursión{asistidas.length !== 1 ? 'es' : ''}
-              </Text>
-              <View style={styles.gap10}>
-                {asistidas.map(exc => <ExcursionMiniCard key={exc.id} excursion={exc} />)}
-              </View>
-            </View>
-          )}
-
-          {activas.length === 0 && asistidas.length === 0 && (
+          ) : (
             <View style={[shared.card, styles.emptyExcCard]}>
               <MaterialDesignIcons name="map-marker-off-outline" size={32} color={colors.textMuted} />
-              <Text style={styles.emptyExcText}>Sin excursiones registradas todavía</Text>
+              <Text style={styles.emptyExcText}>Sin excursiones próximas</Text>
             </View>
           )}
 
@@ -458,6 +465,32 @@ const styles = StyleSheet.create({
   emptyRowText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
   emptyExcCard: { alignItems: 'center', gap: 10, paddingVertical: 24 },
   emptyExcText: { fontSize: 14, color: colors.textMuted },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.backgroundSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+  },
+  statNumber: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   friendBtnContainer: { paddingHorizontal: 16 },
   friendBtnRow: { flexDirection: 'row', gap: 10 },
   friendBtnPrimary: {

@@ -10,12 +10,13 @@ export interface Excursion {
 
   difficulty: ExcursionDifficulty;
   type: ExcursionType;
-  date: string; 
-  time: string; 
-  meetingPoint: string; 
-  organizerName: string; 
+  date: string;
+  time: string;
+  meetingPoint: string;
+  organizerName: string;
 
   availableSpots: number;
 
   imageUrl?: string;
+  status?: string;
 }

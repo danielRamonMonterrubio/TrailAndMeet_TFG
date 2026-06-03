@@ -28,6 +28,7 @@ export const mapExcursion = (row: ExcursionRowWithUser): Excursion => {
     meetingPoint: row.puntoEncuentro,
     organizerName: row.organizerName,
     availableSpots,
-    imageUrl: row.imagenURL ?? undefined
+    imageUrl: row.imagenURL ?? undefined,
+    status: (row as any).status ?? undefined,
   };
 };
