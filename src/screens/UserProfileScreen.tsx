@@ -91,7 +91,7 @@ const StarDisplay: React.FC<{ value: number }> = ({ value }) => (
         key={n}
         name={n <= Math.round(value) ? 'star' : 'star-outline'}
         size={14}
-        color={n <= Math.round(value) ? '#F59E0B' : colors.grayLight}
+        color={n <= Math.round(value) ? colors.starAmber : colors.grayLight}
       />
     ))}
   </View>
@@ -105,7 +105,7 @@ const ValoracionesCard: React.FC<{ valoraciones: Valoraciones | null }> = ({ val
         <View style={valStyles.globalRow}>
           <View style={valStyles.globalScore}>
             <Text style={valStyles.globalNum}>{valoraciones.mediaGlobal.toFixed(1)}</Text>
-            <MaterialDesignIcons name="star" size={22} color="#F59E0B" />
+            <MaterialDesignIcons name="star" size={22} color={colors.starAmber} />
           </View>
           <Text style={valStyles.totalText}>{valoraciones.total} valoración{valoraciones.total !== 1 ? 'es' : ''}</Text>
         </View>

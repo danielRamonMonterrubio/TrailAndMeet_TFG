@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: colors.modalOverlay,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -388,8 +388,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   checkboxActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryGradientStart,
+    borderColor: colors.primaryGradientStart,
   },
   filterItemText: {
     fontSize: 14,
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   btnPrimary: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryGradientStart,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: "center",

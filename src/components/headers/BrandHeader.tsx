@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, StatusBar } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
@@ -30,7 +30,7 @@ const BrandHeader: React.FC = () => {
       style={styles.header}
     >
       <View style={styles.headerContent}>
-        <MaterialDesignIcons name="image-filter-hdr" size={32} color={colors.white} />
+        <MaterialDesignIcons name="image-filter-hdr" size={26} color={colors.white} />
 
         <View style={styles.textContent}>
           <Text style={styles.appTitle}>TrailAndMeet</Text>
@@ -39,7 +39,7 @@ const BrandHeader: React.FC = () => {
 
         <View style={styles.actions}>
           <Pressable hitSlop={10} onPress={() => navigation.navigate('Notifications')} style={styles.bellWrap}>
-            <MaterialDesignIcons name="bell-outline" size={26} color={colors.white} />
+            <MaterialDesignIcons name="bell-outline" size={22} color={colors.white} />
             {unreadCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
@@ -50,7 +50,7 @@ const BrandHeader: React.FC = () => {
           </Pressable>
 
           <Pressable hitSlop={10} onPress={handleLogout}>
-            <MaterialDesignIcons name="logout" size={26} color={colors.white} />
+            <MaterialDesignIcons name="logout" size={22} color={colors.white} />
           </Pressable>
         </View>
       </View>
@@ -62,26 +62,26 @@ export default BrandHeader;
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 8,
+    paddingBottom: 12,
     paddingHorizontal: 16,
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   textContent: {
     flex: 1,
   },
   appTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 17,
+    fontWeight: "700",
     color: colors.white,
   },
   subtitle: {
-    fontSize: 12,
-    color: "#D1FAE5",
+    fontSize: 11,
+    color: colors.headerSubtitle,
   },
   actions: {
     flexDirection: "row",

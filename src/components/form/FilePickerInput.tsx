@@ -35,7 +35,7 @@ const FilePickerInput = ({ fileName, onFileSelected }: Props) => {
   return (
     <View>
       <TouchableOpacity style={styles.button} onPress={pickGpxFile}>
-        <MaterialDesignIcons name="file-document" size={18} color="#065F46" />
+        <MaterialDesignIcons name="file-document" size={18} color={colors.primaryDark} />
         <Text style={styles.buttonText}>Seleccionar archivo GPX</Text>
       </TouchableOpacity>
 
@@ -50,7 +50,7 @@ export default FilePickerInput;
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: "#D1FAE5",
+    backgroundColor: colors.headerSubtitle,
     padding: 10,
     borderRadius: 10,
     alignItems: "center",
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   buttonText: {
-    color: "#065F46",
+    color: colors.primaryDark,
     fontWeight: "600",
   },
   fileText: {

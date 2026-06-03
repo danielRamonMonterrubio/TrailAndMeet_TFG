@@ -53,7 +53,7 @@ const DatePickerInput = ({ label, value, onDateSelected }: Props) => {
         onPress={() => setShowPicker(true)}
       >
         <View style={styles.content}>
-          <MaterialDesignIcons name="calendar" size={20} color="#065F46" />
+          <MaterialDesignIcons name="calendar" size={20} color={colors.primaryDark} />
           <View style={styles.textContainer}>
             <Text style={styles.label}>{label}</Text>
             <Text style={styles.value}>
@@ -81,7 +81,7 @@ export default DatePickerInput;
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: colors.lightGray,
+    backgroundColor: colors.grayLight,
     padding: 12,
     borderRadius: 8,
     flexDirection: "row",
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 16,
-    color: colors.text,
+    color: colors.textPrimary,
     fontWeight: "600",
     marginTop: 2,
   },

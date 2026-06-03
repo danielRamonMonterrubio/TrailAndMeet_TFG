@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, StatusBar } from "react-native";
 import { colors } from "./colors";
 
 export const shared = StyleSheet.create({
@@ -13,7 +13,7 @@ export const shared = StyleSheet.create({
 
   // ── Header (franja degradado superior) ──────────────────────────────────
   header: {
-    paddingTop: 50,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 8,
     paddingHorizontal: 20,
     paddingBottom: 20,
     flexDirection: "row",

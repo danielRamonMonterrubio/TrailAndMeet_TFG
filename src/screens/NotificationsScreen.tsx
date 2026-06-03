@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Modal, Alert, Pressable,
+  ActivityIndicator, RefreshControl, Modal, Alert, Pressable, StatusBar,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -170,14 +170,14 @@ export default NotificationsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.backgroundSoft,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 52,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 8,
     paddingBottom: 12,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.grayLight,
   },
   itemUnread: {
-    backgroundColor: '#EEF9F6',
+    backgroundColor: colors.infoBg,
   },
   unreadBar: {
     position: 'absolute',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   iconWrapUnread: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.headerSubtitle,
   },
   itemBody: {
     flex: 1,
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.modalOverlay,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,

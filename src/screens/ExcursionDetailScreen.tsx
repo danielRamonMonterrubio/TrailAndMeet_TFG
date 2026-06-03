@@ -14,6 +14,7 @@ import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { colors } from '../theme/colors';
 import { shared } from '../theme/styles';
 import excursionDetailService, { ExcursionDetail } from '../services/excursionDetailService';
@@ -273,7 +274,8 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
   if (error || !excursion) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>⚠️ {error || 'Error cargando excursión'}</Text>
+        <MaterialDesignIcons name="alert-circle-outline" size={48} color={colors.errorRed} />
+        <Text style={styles.errorText}>{error || 'Error cargando excursión'}</Text>
       </View>
     );
   }
@@ -325,27 +327,27 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
 
         {excursion.status === 'finished' && (
           <View style={styles.statusBanner}>
+            <MaterialDesignIcons name="flag-checkered" size={15} color={colors.mediumText} />
             <Text style={styles.statusBannerText}>Excursión finalizada</Text>
           </View>
         )}
 
         <View style={styles.content}>
           <View style={styles.infoSection}>
-            <InfoRow label="Fecha y hora de inicio" value={excursion.date + ' : ' + excursion.time} />
-           
-            <InfoRow label="Lugar de encuentro" value={excursion.meetingPoint} />
-            <InfoRow label="Organizador" value={excursion.organizerName} />
-            <InfoRow label="Plazas disponibles" value={String(excursion.availableSpots)} />
-            <InfoRow label="Participantes" value={String(excursion.acceptedCount)} />
+            <InfoRow icon="calendar-clock" label="Fecha y hora de inicio" value={excursion.date + ' · ' + excursion.time} />
+            <InfoRow icon="map-marker" label="Lugar de encuentro" value={excursion.meetingPoint} />
+            <InfoRow icon="account-circle" label="Organizador" value={excursion.organizerName} />
+            <InfoRow icon="seat" label="Plazas disponibles" value={String(excursion.availableSpots)} />
+            <InfoRow icon="account-group" label="Participantes" value={String(excursion.acceptedCount)} />
           </View>
 
           <View style={styles.statsSection}>
             <Text style={shared.sectionTitle}>Estadísticas de la Ruta</Text>
             <View style={styles.statsGrid}>
-              <StatCard label="Distancia" value={`${formatNumber(excursion.distanciaTotal)} km`} icon="📏" />
-              <StatCard label="Elevación Máx" value={`${formatNumber(excursion.elevacionMaxima)} m`} icon="⬆️" />
-              <StatCard label="Elevación Mín" value={`${formatNumber(excursion.elevacionMinima)} m`} icon="⬇️" />
-              <StatCard label="Desnivel Positivo" value={`${formatNumber(excursion.desnivelPositivo)} m`} icon="📈" />
+              <StatCard label="Distancia" value={`${formatNumber(excursion.distanciaTotal)} km`} icon="ruler" />
+              <StatCard label="Elevación Máx" value={`${formatNumber(excursion.elevacionMaxima)} m`} icon="arrow-up-bold" />
+              <StatCard label="Elevación Mín" value={`${formatNumber(excursion.elevacionMinima)} m`} icon="arrow-down-bold" />
+              <StatCard label="Desnivel Positivo" value={`${formatNumber(excursion.desnivelPositivo)} m`} icon="trending-up" />
             </View>
           </View>
 
@@ -378,7 +380,8 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
               </MapView>
             ) : mapError ? (
               <View style={[styles.map, styles.mapPlaceholder]}>
-                <Text style={styles.mapLoadingText}>❌ No se pudo cargar el mapa</Text>
+                <MaterialDesignIcons name="close-circle-outline" size={36} color={colors.errorRed} />
+                <Text style={styles.mapLoadingText}>No se pudo cargar el mapa</Text>
               </View>
             ) : (
               <View style={[styles.map, styles.mapPlaceholder]}>
@@ -390,10 +393,11 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
 
           {/* Sección de acciones */}
           <View style={styles.actionsSection}>
-            {actionLoading && <ActivityIndicator size="small" color={colors.primaryGradientStart} style={styles.actionSpinner} />}
+            <View style={styles.actionsCard}>
+              {actionLoading && <ActivityIndicator size="small" color={colors.primaryGradientStart} style={styles.actionSpinner} />}
 
-            {excursion.isOrganizer ? (
-              <OrganizerActions
+              {excursion.isOrganizer ? (
+                <OrganizerActions
                 excursion={excursion}
                 canFinish={canFinish}
                 disabled={actionLoading}
@@ -420,6 +424,7 @@ const ExcursionDetailScreen: React.FC<Props> = ({ navigation }) => {
                 onRateParticipants={() => navigation.navigate('RateParticipants', { excursionId: excursion.id, excursionTitle: excursion.title })}
               />
             )}
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -450,22 +455,26 @@ const OrganizerActions: React.FC<OrganizerActionsProps> = ({
     </View>
 
     <TouchableOpacity style={styles.secondaryButton} onPress={onParticipants} disabled={disabled}>
-      <Text style={styles.secondaryButtonText}>👥 Ver participantes ({excursion.acceptedCount})</Text>
+      <MaterialDesignIcons name="account-group" size={16} color={colors.primaryGradientStart} />
+      <Text style={styles.secondaryButtonText}>Ver participantes ({excursion.acceptedCount})</Text>
     </TouchableOpacity>
 
     <TouchableOpacity style={styles.chatButton} onPress={onChat} disabled={disabled}>
-      <Text style={styles.chatButtonText}>💬 Chat del grupo</Text>
+      <MaterialDesignIcons name="message" size={16} color={colors.primaryGradientEnd} />
+      <Text style={styles.chatButtonText}>Chat del grupo</Text>
     </TouchableOpacity>
 
     {excursion.status === 'published' && (
       <TouchableOpacity style={styles.secondaryButton} onPress={onPendingRequests} disabled={disabled}>
-        <Text style={styles.secondaryButtonText}>📋 Gestionar solicitudes ({excursion.pendingCount})</Text>
+        <MaterialDesignIcons name="clipboard-list" size={16} color={colors.primaryGradientStart} />
+        <Text style={styles.secondaryButtonText}>Gestionar solicitudes ({excursion.pendingCount})</Text>
       </TouchableOpacity>
     )}
 
     {excursion.status === 'published' && !canFinish && (
       <TouchableOpacity style={styles.secondaryButton} onPress={onEdit} disabled={disabled}>
-        <Text style={styles.secondaryButtonText}>✏️ Editar excursión</Text>
+        <MaterialDesignIcons name="pencil" size={16} color={colors.primaryGradientStart} />
+        <Text style={styles.secondaryButtonText}>Editar excursión</Text>
       </TouchableOpacity>
     )}
 
@@ -475,13 +484,15 @@ const OrganizerActions: React.FC<OrganizerActionsProps> = ({
 
     {excursion.status === 'finished' && (
       <TouchableOpacity style={styles.secondaryButton} onPress={onRateParticipants} disabled={disabled}>
-        <Text style={styles.secondaryButtonText}>⭐ Valorar participantes</Text>
+        <MaterialDesignIcons name="star" size={16} color={colors.primaryGradientStart} />
+        <Text style={styles.secondaryButtonText}>Valorar participantes</Text>
       </TouchableOpacity>
     )}
 
     {!canFinish && excursion.status !== 'finished' && (
       <TouchableOpacity style={styles.dangerButton} onPress={onDelete} disabled={disabled}>
-        <Text style={styles.dangerButtonText}>🗑️ Eliminar excursión</Text>
+        <MaterialDesignIcons name="delete" size={16} color={colors.hardText} />
+        <Text style={styles.dangerButtonText}>Eliminar excursión</Text>
       </TouchableOpacity>
     )}
   </View>
@@ -509,14 +520,16 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
   const { myParticipationStatus, attendanceConfirmed, availableSpots, status } = excursion;
 
   return (
-    <View>
+    <View style={styles.participantContainer}>
       <TouchableOpacity style={styles.secondaryButton} onPress={onParticipants} disabled={disabled}>
-        <Text style={styles.secondaryButtonText}>👥 Ver participantes ({excursion.acceptedCount})</Text>
+        <MaterialDesignIcons name="account-group" size={16} color={colors.primaryGradientStart} />
+        <Text style={styles.secondaryButtonText}>Ver participantes ({excursion.acceptedCount})</Text>
       </TouchableOpacity>
 
       {myParticipationStatus === 'accepted' && (
         <TouchableOpacity style={styles.chatButton} onPress={onChat} disabled={disabled}>
-          <Text style={styles.chatButtonText}>💬 Chat del grupo</Text>
+          <MaterialDesignIcons name="message" size={16} color={colors.primaryGradientEnd} />
+          <Text style={styles.chatButtonText}>Chat del grupo</Text>
         </TouchableOpacity>
       )}
 
@@ -533,7 +546,8 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
       {myParticipationStatus === 'pending' && (
         <>
           <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>⏳ Solicitud pendiente de aprobación</Text>
+            <MaterialDesignIcons name="clock-outline" size={16} color={colors.mediumText} />
+            <Text style={styles.pendingBadgeText}>Solicitud pendiente de aprobación</Text>
           </View>
           <TouchableOpacity style={styles.dangerButton} onPress={onCancelRequest} disabled={disabled}>
             <Text style={styles.dangerButtonText}>Cancelar solicitud</Text>
@@ -544,7 +558,8 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
       {myParticipationStatus === 'accepted' && (
         <>
           <View style={styles.acceptedBadge}>
-            <Text style={styles.acceptedBadgeText}>✅ Estás en esta excursión</Text>
+            <MaterialDesignIcons name="check-circle" size={16} color={colors.easyText} />
+            <Text style={styles.acceptedBadgeText}>Estás en esta excursión</Text>
           </View>
           {canLeave && (
             <TouchableOpacity style={styles.dangerButton} onPress={onLeave} disabled={disabled}>
@@ -556,12 +571,14 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
           )}
           {attendanceConfirmed && (
             <View style={styles.confirmedBadge}>
-              <Text style={styles.confirmedBadgeText}>✅ Asistencia confirmada</Text>
+              <MaterialDesignIcons name="check-circle" size={16} color={colors.easyText} />
+              <Text style={styles.confirmedBadgeText}>Asistencia confirmada</Text>
             </View>
           )}
           {status === 'finished' && attendanceConfirmed && (
             <TouchableOpacity style={styles.secondaryButton} onPress={onRateParticipants} disabled={disabled}>
-              <Text style={styles.secondaryButtonText}>⭐ Valorar participantes</Text>
+              <MaterialDesignIcons name="star" size={16} color={colors.primaryGradientStart} />
+              <Text style={styles.secondaryButtonText}>Valorar participantes</Text>
             </TouchableOpacity>
           )}
         </>
@@ -576,16 +593,23 @@ const ParticipantActions: React.FC<ParticipantActionsProps> = ({
   );
 };
 
-const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const InfoRow: React.FC<{
+  icon: React.ComponentProps<typeof MaterialDesignIcons>['name'];
+  label: string;
+  value: string;
+}> = ({ icon, label, value }) => (
   <View style={styles.infoRow}>
-    <Text style={styles.infoLabel}>{label}</Text>
+    <View style={styles.infoLabelRow}>
+      <MaterialDesignIcons name={icon} size={15} color={colors.primaryGradientStart} />
+      <Text style={styles.infoLabel}>{label}</Text>
+    </View>
     <Text style={styles.infoValue}>{value}</Text>
   </View>
 );
 
-const StatCard: React.FC<{ label: string; value: string; icon: string }> = ({ label, value, icon }) => (
+const StatCard: React.FC<{ label: string; value: string; icon: React.ComponentProps<typeof MaterialDesignIcons>['name'] }> = ({ label, value, icon }) => (
   <View style={styles.statCard}>
-    <Text style={styles.statIcon}>{icon}</Text>
+    <MaterialDesignIcons name={icon} size={26} color={colors.primaryGradientStart} />
     <Text style={styles.statValue}>{value}</Text>
     <Text style={styles.statLabel}>{label}</Text>
   </View>
@@ -604,40 +628,42 @@ const styles = StyleSheet.create({
   title: { color: colors.white, fontSize: 24, fontWeight: '700', flex: 1 },
   difficultyBadge: { backgroundColor: colors.white, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   difficultyText: { color: colors.primaryGradientStart, fontWeight: '600', fontSize: 12 },
-  statusBanner: { backgroundColor: colors.textSecondary, paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' },
-  statusBannerText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+  statusBanner: { backgroundColor: colors.mediumBg, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  statusBannerText: { color: colors.mediumText, fontWeight: '700', fontSize: 14 },
   content: { padding: 16 },
-  infoSection: { backgroundColor: colors.white, borderRadius: 12, padding: 16, marginBottom: 16 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.grayLight },
-  infoLabel: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
-  infoValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  infoSection: { backgroundColor: colors.white, borderRadius: 14, padding: 16, marginBottom: 16 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.grayLight },
+  infoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1, marginRight: 8 },
+  infoLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '500', flex: 1 },
+  infoValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', textAlign: 'right', flexShrink: 1 },
   statsSection: { marginBottom: 16 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  statCard: { width: '48%', backgroundColor: colors.white, borderRadius: 12, padding: 12, marginBottom: 12, alignItems: 'center' },
-  statIcon: { fontSize: 28, marginBottom: 4 },
+  statCard: { width: '48%', backgroundColor: colors.white, borderRadius: 12, padding: 12, marginBottom: 12, alignItems: 'center', gap: 4 },
   statValue: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   statLabel: { fontSize: 12, color: colors.textSecondary, marginTop: 4, textAlign: 'center' },
   mapSection: { marginBottom: 16 },
   map: { width: '100%', height: 400, borderRadius: 12 },
   mapPlaceholder: { backgroundColor: colors.backgroundSoft, justifyContent: 'center', alignItems: 'center' },
   mapLoadingText: { marginTop: 12, color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
-  actionsSection: { marginTop: 16, marginBottom: 24 },
-  actionSpinner: { marginBottom: 12 },
-  organizerContainer: { gap: 10 },
-  organizerBadge: { backgroundColor: colors.primaryGradientStart, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+  actionsSection: { marginTop: 8, marginBottom: 32 },
+  actionsCard: { backgroundColor: colors.white, borderRadius: 16, padding: 20, gap: 14 },
+  actionSpinner: { alignSelf: 'center' },
+  organizerContainer: { gap: 14 },
+  participantContainer: { gap: 14 },
+  organizerBadge: { backgroundColor: colors.primaryGradientStart, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   organizerText: { color: colors.white, fontSize: 14, fontWeight: '700' },
-  secondaryButton: { borderWidth: 1.5, borderColor: colors.primaryGradientStart, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+  secondaryButton: { borderWidth: 1.5, borderColor: colors.primaryGradientStart, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   secondaryButtonText: { color: colors.primaryGradientStart, fontSize: 14, fontWeight: '600' },
-  dangerButton: { borderWidth: 1.5, borderColor: colors.hardText, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+  dangerButton: { borderWidth: 1.5, borderColor: colors.hardText, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   dangerButtonText: { color: colors.hardText, fontSize: 14, fontWeight: '600' },
-  pendingBadge: { backgroundColor: colors.mediumBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', marginBottom: 8 },
+  pendingBadge: { backgroundColor: colors.mediumBg, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   pendingBadgeText: { color: colors.mediumText, fontSize: 13, fontWeight: '600' },
-  acceptedBadge: { backgroundColor: colors.easyBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', marginBottom: 8 },
+  acceptedBadge: { backgroundColor: colors.easyBg, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   acceptedBadgeText: { color: colors.easyText, fontSize: 13, fontWeight: '600' },
-  confirmedBadge: { backgroundColor: colors.easyBg, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+  confirmedBadge: { backgroundColor: colors.easyBg, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   confirmedBadgeText: { color: colors.easyText, fontSize: 14, fontWeight: '700' },
-  infoBadge: { backgroundColor: colors.backgroundSoft, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.grayLight },
+  infoBadge: { backgroundColor: colors.backgroundSoft, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.grayLight },
   infoBadgeText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
-  chatButton: { borderWidth: 1.5, borderColor: colors.primaryGradientEnd, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', backgroundColor: colors.infoBg },
+  chatButton: { borderWidth: 1.5, borderColor: colors.primaryGradientEnd, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.infoBg },
   chatButtonText: { color: colors.primaryGradientEnd, fontSize: 14, fontWeight: '600' },
 });

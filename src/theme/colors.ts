@@ -2,6 +2,7 @@ export const colors = {
   primaryGradientStart: "#059669",
   primaryGradientEnd: "#0D9488",
   primary: "#059669",
+  primaryDark: "#065F46",
 
   textPrimary: "#1F2937",
   textSecondary: "#4B5563",
@@ -26,4 +27,6 @@ export const colors = {
   errorRed: "#EF4444",
   successGreen: "#10B981",
   infoBg: "#E6F4EF",
+  starAmber: "#F59E0B",
+  modalOverlay: "rgba(0,0,0,0.55)",
 };

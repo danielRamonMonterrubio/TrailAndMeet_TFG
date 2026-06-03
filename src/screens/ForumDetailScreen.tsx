@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   postComments: { fontSize: 12, color: colors.textMuted },
   emptyPosts: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 32 },
   emptyText: { fontSize: 14, color: colors.textSecondary, marginTop: 12, textAlign: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: 'center', alignItems: 'center' },
   modalBox: { backgroundColor: colors.white, borderRadius: 16, padding: 24, width: '85%' },
   modalTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary, marginBottom: 4 },
   modalDesc: { fontSize: 13, color: colors.textSecondary },

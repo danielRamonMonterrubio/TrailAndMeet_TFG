@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -253,7 +254,7 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
 
   const EmptyChat = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>💬</Text>
+      <MaterialDesignIcons name="message-outline" size={56} color={colors.textMuted} />
       <Text style={styles.emptyTitle}>¡Sin mensajes todavía!</Text>
       <Text style={styles.emptySubtitle}>Sé el primero en escribir algo</Text>
     </View>
@@ -306,9 +307,8 @@ const ChatScreen: React.FC<Props> = ({ navigation }) => {
       {/* Input */}
       {isFinished ? (
         <View style={styles.finishedBanner}>
-          <Text style={styles.finishedBannerText}>
-            🏁 La excursión ha finalizado · Chat en solo lectura
-          </Text>
+          <MaterialDesignIcons name="flag-checkered" size={16} color={colors.textSecondary} />
+          <Text style={styles.finishedBannerText}>La excursión ha finalizado · Chat en solo lectura</Text>
         </View>
       ) : (
         <View style={styles.inputContainer}>
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSoft,
   },
   header: {
-    paddingTop: 50,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 8,
     paddingBottom: 14,
     paddingHorizontal: 16,
     flexDirection: 'row',
@@ -409,10 +409,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+    gap: 10,
   },
   emptyTitle: {
     fontSize: 18,
@@ -570,7 +567,10 @@ const styles = StyleSheet.create({
     borderTopColor: colors.grayLight,
     paddingVertical: 14,
     paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   finishedBannerText: {
     color: colors.textSecondary,

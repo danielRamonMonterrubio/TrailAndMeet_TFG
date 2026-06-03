@@ -61,7 +61,7 @@ const StarRow: React.FC<StarRowProps> = ({ label, icon, value, onChange }) => (
           <MaterialDesignIcons
             name={n <= value ? 'star' : 'star-outline'}
             size={28}
-            color={n <= value ? '#F59E0B' : colors.grayLight}
+            color={n <= value ? colors.starAmber : colors.grayLight}
           />
         </TouchableOpacity>
       ))}
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   // Modal
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.modalOverlay,
     justifyContent: 'flex-end',
   },
   modalCard: {

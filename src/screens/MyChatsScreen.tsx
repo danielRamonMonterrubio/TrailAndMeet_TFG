@@ -138,7 +138,8 @@ const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+          <MaterialDesignIcons name="alert-circle-outline" size={40} color={colors.errorRed} />
+          <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadChats}>
             <Text style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
@@ -162,7 +163,7 @@ const MyChatsScreen: React.FC<Props> = ({ navigation }) => {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>💬</Text>
+              <MaterialDesignIcons name="message-outline" size={56} color={colors.textMuted} />
               <Text style={styles.emptyTitle}>Sin chats activos</Text>
               <Text style={styles.emptySubtitle}>
                 Únete a una excursión para acceder a su chat de grupo
@@ -312,10 +313,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 16,
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 18,
