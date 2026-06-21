@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, Image, ScrollView, RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { RootStackParamList } from '../navigation/AppNavigation';
@@ -39,6 +39,7 @@ const ExploreForumsScreen = () => {
         categoria: cat ?? undefined,
         offset,
         limit: 20,
+        excludeJoined: true,
       });
       if (offset === 0) {
         setForos(result.foros);
@@ -65,6 +66,10 @@ const ExploreForumsScreen = () => {
     setCategoriaActiva(nueva);
     buscar(search, nueva);
   };
+
+  useFocusEffect(useCallback(() => {
+    buscar('', null);
+  }, [buscar]));
 
   const cargarMas = () => {
     if (!cargandoMas && foros.length < total) {
@@ -171,17 +176,14 @@ const ExploreForumsScreen = () => {
           onEndReachedThreshold={0.3}
           ListFooterComponent={cargandoMas ? <ActivityIndicator color={colors.primaryGradientStart} style={{ margin: 16 }} /> : null}
           ListEmptyComponent={
-            search.length > 0 || categoriaActiva ? (
-              <View style={styles.empty}>
-                <MaterialDesignIcons name="forum-remove-outline" size={56} color={colors.grayLight} />
-                <Text style={styles.emptyText}>No se encontraron foros</Text>
-              </View>
-            ) : (
-              <View style={styles.empty}>
-                <MaterialDesignIcons name="magnify" size={56} color={colors.grayLight} />
-                <Text style={styles.emptyText}>Busca un foro por título o #código</Text>
-              </View>
-            )
+            <View style={styles.empty}>
+              <MaterialDesignIcons name="forum-remove-outline" size={56} color={colors.grayLight} />
+              <Text style={styles.emptyText}>
+                {search.length > 0 || categoriaActiva
+                  ? 'No se encontraron foros'
+                  : 'No hay foros públicos disponibles'}
+              </Text>
+            </View>
           }
         />
       )}

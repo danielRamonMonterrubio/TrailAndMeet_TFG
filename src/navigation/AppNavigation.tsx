@@ -133,7 +133,7 @@ const ComunidadTopTabs = () => {
       tabBarLabelStyle: { fontWeight: '600', fontSize: 14 },
     }}
   >
-      <ComunidadTopTab.Screen name="MyForums" component={MyForumsScreen} options={{ title: 'Foros' }} />
+      <ComunidadTopTab.Screen name="MyForums" component={MyForumsScreen} options={{ title: 'Mis Foros' }} />
       <ComunidadTopTab.Screen name="MyChats" component={MyChatsScreen} options={{ title: 'Chats' }} />
     </ComunidadTopTab.Navigator>
   </View>

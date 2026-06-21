@@ -25,6 +25,7 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const token = authHeader.replace('Bearer ', '')
+    const excludeJoined = url.searchParams.get('excludeJoined') === 'true'
 
     const authClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -43,6 +44,16 @@ export async function handler(req: Request): Promise<Response> {
       return new Response(JSON.stringify({ error: 'Usuario no autenticado' }), { status: 401, headers: corsHeaders })
     }
 
+    // Obtener los foros del usuario para excluirlos si se solicita
+    let misForoIdsExcluir: number[] = []
+    if (excludeJoined) {
+      const { data: membresia } = await supabase
+        .from('foro_miembro')
+        .select('foroId')
+        .eq('usuarioId', user.id)
+      misForoIdsExcluir = (membresia ?? []).map((m: any) => m.foroId)
+    }
+
     // Búsqueda por código exacto (#XXXXXX): muestra cualquier foro incluyendo privados
     const isCodeSearch = search && /^#?[A-Z0-9]{6}$/i.test(search.trim())
 
@@ -54,6 +65,9 @@ export async function handler(req: Request): Promise<Response> {
       query = query.eq('codigo', search.trim().replace('#', '').toUpperCase())
     } else {
       query = query.eq('tipo', 'publico')
+      if (misForoIdsExcluir.length > 0) {
+        query = query.not('id', 'in', `(${misForoIdsExcluir.join(',')})`)
+      }
       if (search?.trim()) {
         query = query.ilike('titulo', `%${search.trim()}%`)
       }
@@ -72,21 +86,25 @@ export async function handler(req: Request): Promise<Response> {
 
     const foroIds = (foros ?? []).map((f: any) => f.id)
 
-    // Membresía del usuario y conteo de miembros en paralelo
-    const [membresiaRes, allMiembrosRes] = await Promise.all([
-      foroIds.length > 0
-        ? supabase.from('foro_miembro').select('foroId').eq('usuarioId', user.id).in('foroId', foroIds)
-        : Promise.resolve({ data: [] }),
+    // Conteo de miembros + membresía propia (solo si no excluimos ya los unidos)
+    const miembrosQueries: Promise<any>[] = [
       foroIds.length > 0
         ? supabase.from('foro_miembro').select('foroId').in('foroId', foroIds)
         : Promise.resolve({ data: [] }),
-    ])
+    ]
+    if (!excludeJoined && foroIds.length > 0) {
+      miembrosQueries.push(
+        supabase.from('foro_miembro').select('foroId').eq('usuarioId', user.id).in('foroId', foroIds)
+      )
+    }
 
-    const misForoIds = new Set((membresiaRes.data ?? []).map((m: any) => m.foroId))
+    const [allMiembrosRes, membresiaRes] = await Promise.all(miembrosQueries)
+
     const memberCountMap: Record<number, number> = {}
     ;(allMiembrosRes.data ?? []).forEach((m: any) => {
       memberCountMap[m.foroId] = (memberCountMap[m.foroId] ?? 0) + 1
     })
+    const misForoIds = new Set((membresiaRes?.data ?? []).map((m: any) => m.foroId))
 
     // Generar URLs firmadas para portadas
     const forosConUrl = await Promise.all(
@@ -100,7 +118,7 @@ export async function handler(req: Request): Promise<Response> {
           ...foro,
           portada_url: portadaUrl,
           memberCount: memberCountMap[foro.id] ?? 0,
-          isMember: misForoIds.has(foro.id),
+          isMember: excludeJoined ? false : misForoIds.has(foro.id),
         }
       })
     )

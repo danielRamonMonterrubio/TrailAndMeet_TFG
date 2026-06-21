@@ -115,6 +115,7 @@ export const forumService = {
     categoria?: string;
     offset?: number;
     limit?: number;
+    excludeJoined?: boolean;
   }): Promise<{ foros: ForumSummary[]; total: number }> {
     return getFunction('get-forums', params);
   },

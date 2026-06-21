@@ -86,6 +86,14 @@ const MyForumsScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {!loading && !error && (
+        <Text style={styles.screenSubtitle}>
+          {foros.length === 0
+            ? 'Aún no perteneces a ningún foro'
+            : `${foros.length} foro${foros.length !== 1 ? 's' : ''} al que perteneces`}
+        </Text>
+      )}
+
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={colors.primaryGradientStart} />
       ) : error ? (
@@ -111,6 +119,22 @@ const MyForumsScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  screenHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  screenTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  screenSubtitle: {
+    fontSize: 13,
+    color: colors.textMuted,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
   actions: {
     flexDirection: 'row',
     padding: 16,

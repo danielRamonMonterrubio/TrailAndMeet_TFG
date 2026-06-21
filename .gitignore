@@ -84,3 +84,7 @@ CLAUDE.md
 /backend/.env
 /backend/.env.local
 /backend/CLAUDE.md
+
+# Documentación y diagramas locales
+/docs/
+/diagramas/
