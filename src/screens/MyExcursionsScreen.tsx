@@ -139,12 +139,16 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
-        {excursions.length > 0 ? (
+        {(() => {
+          const displayed = filterType === 'unidas'
+            ? excursions.filter(e => !e.isOrganizer)
+            : excursions;
+          return displayed.length > 0 ? (
           <>
             <Text style={styles.resultCount}>
-              {excursions.length} {excursions.length === 1 ? 'excursión' : 'excursiones'}
+              {displayed.length} {displayed.length === 1 ? 'excursión' : 'excursiones'}
             </Text>
-            {excursions.map((excursion) => (
+            {displayed.map((excursion) => (
               <View key={excursion.id}>
                 {excursion.status === 'finished' && (
                   <View style={styles.finishedTab}>
@@ -179,7 +183,8 @@ const MyExcursionsScreen: React.FC<Props> = ({ navigation }) => {
                 : 'Crea una excursión para empezar'}
             </Text>
           </View>
-        )}
+        );
+        })()}
       </ScrollView>
     </View>
   );

@@ -70,7 +70,7 @@ const EditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const loadProfile = async () => {
     try {
-      const profile = await profileService.getOwnProfile();
+      const { profile } = await profileService.getOwnProfile();
       setNombreUsuario(profile.nombreUsuario ?? '');
       setNombre(profile.nombre ?? '');
       setApellido(profile.apellido ?? '');

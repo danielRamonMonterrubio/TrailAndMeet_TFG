@@ -19,4 +19,5 @@ export interface Excursion {
 
   imageUrl?: string;
   status?: string;
+  isOrganizer?: boolean;
 }

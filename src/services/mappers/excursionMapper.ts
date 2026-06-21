@@ -30,5 +30,6 @@ export const mapExcursion = (row: ExcursionRowWithUser): Excursion => {
     availableSpots,
     imageUrl: row.imagenURL ?? undefined,
     status: (row as any).status ?? undefined,
+    isOrganizer: (row as any).isOrganizer ?? false,
   };
 };

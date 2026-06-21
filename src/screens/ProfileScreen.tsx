@@ -248,8 +248,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSoft,
   },
   header: {
-    paddingTop: 48,
-    paddingBottom: 20,
+    paddingTop: 24,
+    paddingBottom: 12,
     paddingHorizontal: 20,
     alignItems: 'center',
     gap: 4,

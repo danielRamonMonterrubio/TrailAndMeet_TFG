@@ -62,8 +62,8 @@ export default BrandHeader;
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: (StatusBar.currentHeight ?? 24) + 8,
-    paddingBottom: 12,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 4,
+    paddingBottom: 8,
     paddingHorizontal: 16,
   },
   headerContent: {
