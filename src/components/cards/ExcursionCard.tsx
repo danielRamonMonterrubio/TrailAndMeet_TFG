@@ -2,8 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-icons";
 import type { ComponentProps } from "react";
-import { Excursion } from "../models/Excursion";
-import { colors } from "../theme/colors";
+import { Excursion } from "../../models/Excursion";
+import { colors } from "../../theme/colors";
 
 interface Props {
   excursion: Excursion;

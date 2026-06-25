@@ -1,6 +1,8 @@
 export const colors = {
   primaryGradientStart: "#059669",
   primaryGradientEnd: "#0D9488",
+  primary: "#059669",
+  primaryDark: "#065F46",
 
   textPrimary: "#1F2937",
   textSecondary: "#4B5563",
@@ -8,6 +10,7 @@ export const colors = {
 
   white: "#FFFFFF",
   grayLight: "#E5E7EB",
+  borderColor: "#D1D5DB",
 
   backgroundSoft: "#EAF6F4",
 
@@ -19,4 +22,11 @@ export const colors = {
 
   hardBg: "#FEE2E2",
   hardText: "#991B1B",
+
+  headerSubtitle: "#D1FAE5",
+  errorRed: "#EF4444",
+  successGreen: "#10B981",
+  infoBg: "#E6F4EF",
+  starAmber: "#F59E0B",
+  modalOverlay: "rgba(0,0,0,0.55)",
 };

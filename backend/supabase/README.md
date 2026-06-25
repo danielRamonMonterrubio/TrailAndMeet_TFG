@@ -1,0 +1,1 @@
+Paquete backend para el visualizado del contenido de las edge functions desplegadas en supabase. No se ejecutan localmente, es una muestra del código subido a la nube.

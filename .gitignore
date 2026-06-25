@@ -21,7 +21,7 @@ DerivedData
 *.ipa
 *.xcuserstate
 **/.xcode.env.local
-
+memoria_prototipo.txt
 # Android/IntelliJ
 #
 build/
@@ -34,6 +34,7 @@ local.properties
 *.keystore
 !debug.keystore
 .kotlin/
+google-services.json
 
 # node.js
 #
@@ -74,4 +75,16 @@ yarn-error.log
 !.yarn/sdks
 !.yarn/versions
 
+/.claude
 .env
+.env.local
+PlantillaMemoria.txt
+proximoquehacer.txt
+CLAUDE.md
+/backend/.env
+/backend/.env.local
+/backend/CLAUDE.md
+
+# Documentación y diagramas locales
+/docs/
+/diagramas/

@@ -22,11 +22,14 @@ export const mapExcursion = (row: ExcursionRowWithUser): Excursion => {
     id: row.id.toString(),
     title: row.titulo,
     difficulty: row.dificultad as "Facil" | "Medio" | "Dificil",
+    type: row.tipoExcursion as "Senderismo" | "Alta montana" | "Ski de travesia" | "Via ferrata" | "Escalada" | "Trail running" | "Bicicleta",
     date,
     time,
     meetingPoint: row.puntoEncuentro,
     organizerName: row.organizerName,
     availableSpots,
-    imageUrl: row.imagenURL ?? undefined
+    imageUrl: row.imagenURL ?? undefined,
+    status: (row as any).status ?? undefined,
+    isOrganizer: (row as any).isOrganizer ?? false,
   };
 };
